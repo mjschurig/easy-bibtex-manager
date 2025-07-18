@@ -1,0 +1,2877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BibTeX Manager</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --fg-color: #212529;
+            --border-color: #dee2e6;
+            --primary-color: #0d6efd;
+            --primary-color-hover: #0b5ed7;
+            --card-bg: #ffffff;
+            --shadow: 0 2px 4px rgba(0,0,0,0.05);
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+        body {
+            font-family: var(--font-family);
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--fg-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        header {
+            background-color: var(--card-bg);
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+        .main-content {
+            display: flex;
+            flex-grow: 1;
+            overflow-y: hidden;
+        }
+        #entry-list-container {
+            flex: 1 1 50%;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+        .toolbar {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--card-bg);
+            display: flex;
+            gap: 1rem;
+        }
+        .toolbar input, .toolbar select {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .toolbar input[type="search"] {
+            flex-grow: 1;
+        }
+        #entry-list {
+            overflow-y: auto;
+            padding: 1rem;
+            flex-grow: 1;
+        }
+        #editor-container {
+            flex: 1 1 50%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--card-bg);
+            position: relative;
+        }
+        #editor-placeholder {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #6c757d;
+            text-align: center;
+            padding: 2rem;
+        }
+        .tab-nav {
+            background-color: var(--card-bg);
+            padding: 0 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+        }
+        .tab-btn {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            border-bottom: 3px solid transparent;
+            margin-bottom: -1px;
+        }
+        .tab-btn.active {
+            border-bottom-color: var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 500;
+        }
+        .tab-content {
+            display: none;
+            flex-grow: 1;
+            overflow-y: hidden;
+        }
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+        #author-list-container {
+            flex: 0 0 350px;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            background-color: var(--card-bg);
+        }
+        .author-list-item {
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .author-list-item:hover {
+            background-color: #f8f9fa;
+        }
+        .author-list-item.active {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 500;
+        }
+        #author-works-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        #variables-list-container {
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        .variables-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .variables-table th, .variables-table td {
+            border: 1px solid var(--border-color);
+            padding: 0.75rem;
+            text-align: left;
+        }
+        .variables-table th {
+            background-color: var(--bg-color);
+        }
+        .entry-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .entry-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+        }
+        .entry-card.active {
+             border-left: 5px solid var(--primary-color);
+        }
+        .entry-card .title {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+        .entry-card .author, .entry-card .meta {
+            font-size: 0.9rem;
+            color: #495057;
+        }
+        .entry-card .meta {
+            margin-top: 0.5rem;
+            font-style: italic;
+        }
+        .entry-card .key {
+            font-family: monospace;
+            background-color: #e9ecef;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.85rem;
+        }
+        button {
+            padding: 0.5rem 1rem;
+            font-size: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            background-color: var(--card-bg);
+        }
+        button.primary {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        button.primary:hover {
+            background-color: var(--primary-color-hover);
+            border-color: var(--primary-color-hover);
+        }
+        #file-info {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            background: #e9ecef;
+            text-align: center;
+        }
+        .editor-form {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-color);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        #editor-content {
+            flex-grow: 1;
+            overflow-y: auto;
+            height: 0;
+        }
+        .editor-header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        .editor-header .entry-type {
+            font-style: italic;
+            color: #6c757d;
+            font-weight: normal;
+        }
+        .form-fields {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        .field-group {
+            margin-bottom: 1rem;
+        }
+        .field-group label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-weight: 500;
+            text-transform: capitalize;
+        }
+        .field-group textarea {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-toggle {
+            background-color: #6c757d;
+            color: white;
+            border-color: #6c757d;
+        }
+        .dropdown-toggle:hover {
+            background-color: #5c636a;
+            border-color: #5c636a;
+        }
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            background-color: var(--card-bg);
+            min-width: 180px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            z-index: 100;
+            border-radius: 4px;
+            padding: 0.5rem 0;
+        }
+        .dropdown-menu a {
+            color: black;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+        .dropdown-menu a:hover {
+            background-color: #f1f1f1;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: var(--card-bg);
+            padding: 0;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 700px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 {
+            margin: 0;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.75rem;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+        .duplicate-group {
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .duplicate-group h4 {
+            margin-top: 0;
+        }
+        .duplicate-group ul {
+            list-style-type: '» ';
+            padding-left: 1.5rem;
+        }
+        .merge-form {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--border-color);
+        }
+        .form-row {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .form-group {
+            flex: 1;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.5rem;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        .field-group-with-variable {
+            position: relative;
+        }
+        .variable-edit-btn {
+            position: absolute;
+            top: 0;
+            right: 0;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            z-index: 1;
+        }
+        .variable-edit-btn:hover {
+            background-color: #5c636a;
+        }
+        .field-disabled {
+            background-color: #f8f9fa;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+        .variable-cell-editable {
+            cursor: pointer;
+        }
+        .variable-cell-editing input {
+            width: 100%;
+            padding: 0.25rem;
+            border: 1px solid var(--primary-color);
+            border-radius: 3px;
+            font-family: inherit;
+            font-size: inherit;
+        }
+        .variable-row-highlighted {
+            background-color: #fff3cd;
+        }
+        .entry-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background-color: var(--bg-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .entry-controls label {
+            font-weight: 500;
+            margin-right: 0.5rem;
+        }
+        .entry-controls select,
+        .entry-controls input {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .entry-controls input[type="text"] {
+            min-width: 200px;
+        }
+        .add-field-section {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+        }
+        .add-field-btn {
+            padding: 0.75rem 1.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .add-field-btn:hover {
+            background-color: var(--primary-color-hover);
+        }
+        .field-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .field-modal-content {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+        }
+        .field-modal h3 {
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+        .field-modal select,
+        .field-modal input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        .field-modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+        .field-modal-buttons button {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .field-modal-buttons .primary {
+            background-color: var(--primary-color);
+            color: white;
+            border-color: var(--primary-color);
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+            border-color: #dc3545;
+        }
+        .delete-btn:hover {
+            background-color: #c82333;
+            border-color: #c82333;
+        }
+        .editor-header .button-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        .toggle-raw-btn {
+            background-color: #6c757d;
+            color: white;
+            border: 1px solid #6c757d;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .toggle-raw-btn:hover {
+            background-color: #5c636a;
+            border-color: #5c636a;
+        }
+        .toggle-raw-btn.active {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .raw-editor {
+            padding: 1.5rem;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        .raw-editor textarea {
+            flex-grow: 1;
+            min-height: 300px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            padding: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            resize: none;
+            line-height: 1.4;
+            box-sizing: border-box;
+        }
+        .raw-editor-label {
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--fg-color);
+        }
+        .author-editor {
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 1rem;
+            background-color: var(--card-bg);
+        }
+        .author-editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        .author-editor-title {
+            font-weight: 500;
+            margin: 0;
+        }
+        .add-author-btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .add-author-btn:hover {
+            background-color: var(--primary-color-hover);
+        }
+        .author-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            padding: 0.5rem;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+        .author-item:last-child {
+            margin-bottom: 0;
+        }
+        .author-combobox {
+            flex: 1;
+            position: relative;
+        }
+        .author-input {
+            width: 100%;
+            padding: 0.375rem;
+            border: 1px solid var(--border-color);
+            border-radius: 3px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+        .author-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 3px 3px;
+            max-height: 150px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        .author-dropdown.show {
+            display: block;
+        }
+        .author-option {
+            padding: 0.375rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .author-option:hover {
+            background-color: var(--bg-color);
+        }
+        .author-option.variable {
+            font-style: italic;
+            color: #6c757d;
+        }
+        .author-option.variable::before {
+            content: "📝 ";
+        }
+        .author-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .variable-checkbox {
+            margin: 0;
+        }
+        .variable-label {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin: 0;
+            cursor: pointer;
+        }
+        .delete-author-btn {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.7rem;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .delete-author-btn:hover {
+            background-color: #c82333;
+        }
+        .author-item.is-variable {
+            background-color: #e7f3ff;
+            border-color: var(--primary-color);
+        }
+        .author-item.is-variable .author-input {
+            background-color: #f0f8ff;
+            font-style: italic;
+        }
+        .no-authors {
+            padding: 1rem;
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            border: 1px dashed #dee2e6;
+            border-radius: 4px;
+            background-color: #f8f9fa;
+        }
+        .create-entry-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .create-entry-modal-content {
+            background-color: var(--card-bg);
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+        }
+        .create-entry-modal h3 {
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+        }
+        .create-entry-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .create-entry-form label {
+            font-weight: 500;
+        }
+        .create-entry-form input,
+        .create-entry-form select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        .create-entry-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 1rem;
+        }
+        .create-entry-buttons button {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .combobox-container {
+            position: relative;
+            display: flex;
+            min-width: 200px;
+        }
+        .combobox-container input {
+            flex: 1;
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px 0 0 4px;
+            font-size: 1rem;
+        }
+        .combobox-dropdown-btn {
+            padding: 0.5rem;
+            border: 1px solid var(--border-color);
+            border-left: none;
+            border-radius: 0 4px 4px 0;
+            background-color: var(--card-bg);
+            cursor: pointer;
+            font-size: 0.8rem;
+            min-width: 2rem;
+        }
+        .combobox-dropdown-btn:hover {
+            background-color: var(--bg-color);
+        }
+        .combobox-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        .combobox-dropdown.show {
+            display: block;
+        }
+        .combobox-option {
+            padding: 0.5rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .combobox-option:last-child {
+            border-bottom: none;
+        }
+        .combobox-option:hover {
+            background-color: var(--bg-color);
+        }
+        .combobox-option.selected {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .combobox-option.highlighted {
+            background-color: #e9ecef;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>BibTeX Manager</h1>
+        <div class="actions">
+            <input type="file" id="file-input" accept=".bib" style="display: none;">
+            <button id="open-file-btn">Open .bib File</button>
+            <button id="create-entry-btn" class="primary" disabled>Create Entry</button>
+            <button id="save-file-btn" class="primary" disabled>Save</button>
+            <div class="dropdown">
+                <button id="advanced-btn" class="dropdown-toggle" disabled>Advanced</button>
+                <div id="advanced-menu" class="dropdown-menu">
+                    <a href="#" id="find-duplicates-btn">Find Duplicate Authors</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="tab-nav">
+        <button id="tab-literature" class="tab-btn active">Literature</button>
+        <button id="tab-authors" class="tab-btn">Authors</button>
+        <button id="tab-variables" class="tab-btn">Variables</button>
+    </nav>
+
+    <div id="literature-view" class="tab-content active">
+        <div class="main-content">
+            <div id="entry-list-container">
+                <div id="file-info">No file loaded.</div>
+                <div class="toolbar">
+                    <input type="search" id="filter-input" placeholder="Filter by author, title, year..." disabled>
+                    <div class="combobox-container">
+                        <input type="text" id="author-filter-input" placeholder="Filter by Author..." disabled autocomplete="off">
+                        <button type="button" id="author-filter-dropdown-btn" class="combobox-dropdown-btn" disabled>▼</button>
+                        <div id="author-filter-dropdown" class="combobox-dropdown"></div>
+                    </div>
+                    <select id="sort-select" disabled>
+                        <option value="author">Sort by Author</option>
+                        <option value="year">Sort by Year</option>
+                        <option value="type">Sort by Type</option>
+                    </select>
+                </div>
+                <div id="entry-list"></div>
+            </div>
+            <div id="editor-container">
+                <div id="editor-placeholder">
+                    <h2>Select an entry to view or edit it.</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="authors-view" class="tab-content">
+        <div class="toolbar">
+            <input type="search" id="author-search-input" placeholder="Search authors..." disabled>
+        </div>
+         <div class="main-content">
+            <div id="author-list-container"></div>
+            <div id="author-works-container">
+                <div class="editor-placeholder">
+                    <h2>Select an author to see their works.</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="variables-view" class="tab-content">
+        <div class="toolbar">
+            <input type="search" id="variables-search-input" placeholder="Search variables..." disabled>
+            <label for="sort-variables-select">Sort by:</label>
+            <select id="sort-variables-select">
+                <option value="key">Key</option>
+                <option value="value">Value</option>
+            </select>
+        </div>
+        <div id="variables-list-container"></div>
+    </div>
+
+    <div id="duplicates-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Potential Duplicate Authors</h2>
+                <button id="close-modal-btn" class="close-btn">&times;</button>
+            </div>
+            <div id="duplicates-list" class="modal-body"></div>
+        </div>
+    </div>
+
+    <div id="field-modal" class="field-modal" style="display: none;">
+        <div class="field-modal-content">
+            <h3>Add New Field</h3>
+            <label for="field-type-select">Field Type:</label>
+            <select id="field-type-select"></select>
+            <label for="field-value-input">Field Value:</label>
+            <input type="text" id="field-value-input" placeholder="Enter field value...">
+            <div class="field-modal-buttons">
+                <button id="cancel-field-btn">Cancel</button>
+                <button id="add-field-submit-btn" class="primary">Add Field</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="create-entry-modal" class="create-entry-modal" style="display: none;">
+        <div class="create-entry-modal-content">
+            <h3>Create New Entry</h3>
+            <form class="create-entry-form">
+                <div>
+                    <label for="create-entry-type">Entry Type:</label>
+                    <select id="create-entry-type"></select>
+                </div>
+                <div>
+                    <label for="create-entry-key">Citation Key:</label>
+                    <input type="text" id="create-entry-key" placeholder="e.g., smith2024" required>
+                </div>
+                <div>
+                    <label for="create-entry-title">Title (optional):</label>
+                    <input type="text" id="create-entry-title" placeholder="Enter title...">
+                </div>
+                <div>
+                    <label for="create-entry-author">Author (optional):</label>
+                    <input type="text" id="create-entry-author" placeholder="Enter author(s)...">
+                </div>
+                <div>
+                    <label for="create-entry-year">Year (optional):</label>
+                    <input type="text" id="create-entry-year" placeholder="e.g., 2024">
+                </div>
+            </form>
+            <div class="create-entry-buttons">
+                <button id="cancel-create-entry-btn">Cancel</button>
+                <button id="submit-create-entry-btn" class="primary">Create Entry</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const BIBTEX_TYPES = [
+            'article', 'book', 'booklet', 'conference', 'inbook', 'incollection', 
+            'inproceedings', 'manual', 'mastersthesis', 'misc', 'phdthesis', 
+            'proceedings', 'techreport', 'unpublished'
+        ];
+
+        const BIBTEX_FIELDS = [
+            'address', 'annote', 'author', 'booktitle', 'chapter', 'crossref', 
+            'doi', 'edition', 'editor', 'email', 'howpublished', 'institution', 
+            'journal', 'month', 'note', 'number', 'organization', 'pages', 
+            'publisher', 'school', 'series', 'title', 'type', 'volume', 'year'
+        ];
+
+        let bibEntries = [];
+        let stringVariables = {};
+        let processedEntries = [];
+        let allAuthors = new Set();
+        let authorStringMappings = {};
+        let activeEntryKey = null;
+        let highlightedVariable = null;
+        let isRawMode = false;
+        let currentAuthorFilter = '';
+        let highlightedOptionIndex = -1;
+        let allAuthorOptions = [];
+        let availableAuthors = [];
+        let authorVariableMap = {};
+        let authorDropdownListenerAdded = false;
+
+        // Utility functions
+        function showModal(modal) {
+            modal.style.display = 'flex';
+        }
+
+        function hideModal(modal) {
+            modal.style.display = 'none';
+        }
+
+        function toggleDropdown(dropdown) {
+            dropdown.classList.toggle('show');
+        }
+
+        function clearFormInputs(form) {
+            form.querySelectorAll('input, select').forEach(input => {
+                if (input.type === 'checkbox') {
+                    input.checked = false;
+                } else {
+                    input.value = '';
+                }
+            });
+        }
+
+        function enableControls() {
+            const controls = [
+                'save-file-btn', 'create-entry-btn', 'filter-input', 'sort-select',
+                'advanced-btn', 'author-search-input', 'variables-search-input',
+                'author-filter-input', 'author-filter-dropdown-btn'
+            ];
+            controls.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) element.disabled = false;
+            });
+        }
+
+        function validateRequired(value, fieldName) {
+            if (!value.trim()) {
+                alert(`${fieldName} is required.`);
+                return false;
+            }
+            return true;
+        }
+
+        function checkDuplicateKey(key, currentKey = null) {
+            const existing = bibEntries.find(e => e.key === key && e.key !== currentKey);
+            if (existing) {
+                alert(`An entry with key "${key}" already exists.`);
+                return false;
+            }
+            return true;
+        }
+
+        // DOM elements
+        const elements = {
+            openFileBtn: document.getElementById('open-file-btn'),
+            fileInput: document.getElementById('file-input'),
+            saveFileBtn: document.getElementById('save-file-btn'),
+            fileInfoEl: document.getElementById('file-info'),
+            entryListEl: document.getElementById('entry-list'),
+            editorContainerEl: document.getElementById('editor-container'),
+            filterInput: document.getElementById('filter-input'),
+            sortSelect: document.getElementById('sort-select'),
+            authorFilterInput: document.getElementById('author-filter-input'),
+            authorFilterDropdownBtn: document.getElementById('author-filter-dropdown-btn'),
+            authorFilterDropdown: document.getElementById('author-filter-dropdown'),
+            advancedBtn: document.getElementById('advanced-btn'),
+            advancedMenu: document.getElementById('advanced-menu'),
+            findDuplicatesBtn: document.getElementById('find-duplicates-btn'),
+            duplicatesModal: document.getElementById('duplicates-modal'),
+            closeModalBtn: document.getElementById('close-modal-btn'),
+            duplicatesListEl: document.getElementById('duplicates-list'),
+            tabLiteratureBtn: document.getElementById('tab-literature'),
+            tabAuthorsBtn: document.getElementById('tab-authors'),
+            tabVariablesBtn: document.getElementById('tab-variables'),
+            literatureView: document.getElementById('literature-view'),
+            authorsView: document.getElementById('authors-view'),
+            variablesView: document.getElementById('variables-view'),
+            authorListContainer: document.getElementById('author-list-container'),
+            authorWorksContainer: document.getElementById('author-works-container'),
+            sortVariablesSelect: document.getElementById('sort-variables-select'),
+            variablesListContainer: document.getElementById('variables-list-container'),
+            authorSearchInput: document.getElementById('author-search-input'),
+            variablesSearchInput: document.getElementById('variables-search-input'),
+            fieldModal: document.getElementById('field-modal'),
+            fieldTypeSelect: document.getElementById('field-type-select'),
+            fieldValueInput: document.getElementById('field-value-input'),
+            cancelFieldBtn: document.getElementById('cancel-field-btn'),
+            addFieldSubmitBtn: document.getElementById('add-field-submit-btn'),
+            createEntryBtn: document.getElementById('create-entry-btn'),
+            createEntryModal: document.getElementById('create-entry-modal'),
+            createEntryType: document.getElementById('create-entry-type'),
+            createEntryKey: document.getElementById('create-entry-key'),
+            createEntryTitle: document.getElementById('create-entry-title'),
+            createEntryAuthor: document.getElementById('create-entry-author'),
+            createEntryYear: document.getElementById('create-entry-year'),
+            cancelCreateEntryBtn: document.getElementById('cancel-create-entry-btn'),
+            submitCreateEntryBtn: document.getElementById('submit-create-entry-btn')
+        };
+
+        // Main event listeners
+        elements.openFileBtn.addEventListener('click', () => elements.fileInput.click());
+        elements.fileInput.addEventListener('change', handleFileSelect);
+        elements.saveFileBtn.addEventListener('click', saveFile);
+        elements.createEntryBtn.addEventListener('click', showCreateEntryModal);
+        elements.filterInput.addEventListener('input', updateView);
+        elements.sortSelect.addEventListener('change', updateView);
+
+        // Author filter combobox events
+        elements.authorFilterInput.addEventListener('input', handleAuthorFilterInput);
+        elements.authorFilterInput.addEventListener('focus', showAuthorDropdown);
+        elements.authorFilterInput.addEventListener('keydown', handleAuthorFilterKeydown);
+        elements.authorFilterDropdownBtn.addEventListener('click', toggleAuthorDropdown);
+
+        // Modal events
+        elements.cancelFieldBtn.addEventListener('click', () => hideModal(elements.fieldModal));
+        elements.addFieldSubmitBtn.addEventListener('click', handleAddField);
+        elements.cancelCreateEntryBtn.addEventListener('click', () => hideModal(elements.createEntryModal));
+        elements.submitCreateEntryBtn.addEventListener('click', handleCreateEntry);
+        elements.closeModalBtn.addEventListener('click', () => hideModal(elements.duplicatesModal));
+
+        // Tab events
+        elements.tabLiteratureBtn.addEventListener('click', () => showTab('literature'));
+        elements.tabAuthorsBtn.addEventListener('click', () => showTab('authors'));
+        elements.tabVariablesBtn.addEventListener('click', () => showTab('variables'));
+        elements.sortVariablesSelect.addEventListener('change', renderVariablesView);
+        elements.authorSearchInput.addEventListener('input', renderAuthorsView);
+        elements.variablesSearchInput.addEventListener('input', renderVariablesView);
+
+        // Advanced menu events
+        elements.advancedBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDropdown(elements.advancedMenu);
+        });
+        elements.findDuplicatesBtn.addEventListener('click', () => {
+            showModal(elements.duplicatesModal);
+            hideModal(elements.advancedMenu);
+            findAndDisplayDuplicates();
+        });
+
+        // Global events
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.combobox-container')) {
+                hideAuthorDropdown();
+            }
+            if (!e.target.closest('.dropdown')) {
+                elements.advancedMenu.style.display = 'none';
+            }
+        });
+
+        // Modal click outside to close
+        [elements.fieldModal, elements.createEntryModal, elements.duplicatesModal].forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) hideModal(modal);
+            });
+        });
+
+        // Enter key handlers
+        elements.fieldValueInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddField();
+            }
+        });
+
+        [elements.createEntryKey, elements.createEntryTitle, elements.createEntryAuthor, elements.createEntryYear].forEach(input => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCreateEntry();
+                }
+            });
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                if (elements.fieldModal.style.display === 'flex') {
+                    hideModal(elements.fieldModal);
+                } else if (elements.createEntryModal.style.display === 'flex') {
+                    hideModal(elements.createEntryModal);
+                }
+            } else if (e.key === 'r' && e.ctrlKey && activeEntryKey) {
+                e.preventDefault();
+                toggleRawMode(activeEntryKey);
+            } else if (e.key === 's' && e.ctrlKey && activeEntryKey) {
+                e.preventDefault();
+                handleUpdate(activeEntryKey);
+            }
+        });
+
+        function updateView() {
+            if (!processedEntries || !Array.isArray(processedEntries)) {
+                if (elements.entryListEl) elements.entryListEl.innerHTML = '';
+                return;
+            }
+
+            const filterText = elements.filterInput ? elements.filterInput.value.toLowerCase().trim() : '';
+            const authorFilter = currentAuthorFilter || '';
+            const sortBy = elements.sortSelect ? elements.sortSelect.value : 'author';
+
+            let filteredEntries = processedEntries.filter(entry => {
+                const searchText = `${entry.processedFields.title || ''} ${entry.processedFields.author || ''} ${entry.processedFields.year || ''} ${entry.key}`.toLowerCase();
+                const textMatch = !filterText || searchText.includes(filterText);
+                const authorMatch = !authorFilter || (entry.authors && entry.authors.includes(authorFilter));
+                return textMatch && authorMatch;
+            });
+
+            filteredEntries.sort((a, b) => {
+                switch (sortBy) {
+                    case 'year':
+                        const yearA = parseInt(a.processedFields.year) || 0;
+                        const yearB = parseInt(b.processedFields.year) || 0;
+                        return yearB - yearA;
+                    case 'type':
+                        return a.type.localeCompare(b.type);
+                    case 'author':
+                    default:
+                        const authorA = a.processedFields.author || '';
+                        const authorB = b.processedFields.author || '';
+                        return authorA.localeCompare(authorB);
+                }
+            });
+
+            if (!elements.entryListEl) return;
+            elements.entryListEl.innerHTML = '';
+            
+            if (filteredEntries.length === 0) {
+                elements.entryListEl.innerHTML = '<div style="padding: 2rem; text-align: center; color: #6c757d;">No entries match your filters.</div>';
+                return;
+            }
+
+            filteredEntries.forEach(entry => {
+                const card = createEntryCard(entry);
+                elements.entryListEl.appendChild(card);
+            });
+        }
+
+        function showEditor(entryKey) {
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (!entry || !elements.editorContainerEl) return;
+
+            activeEntryKey = entryKey;
+
+            document.querySelectorAll('.entry-card').forEach(card => {
+                card.classList.toggle('active', card.dataset.key === entryKey);
+            });
+
+            const typeOptions = BIBTEX_TYPES.map(type => 
+                `<option value="${type}" ${type === entry.type ? 'selected' : ''}>${type}</option>`
+            ).join('');
+
+            const editorHtml = `
+                <div class="editor-form">
+                    <div class="editor-header">
+                        <h2>
+                            <span class="entry-type">@${entry.type}</span> ${entry.key}
+                        </h2>
+                        <div class="button-group">
+                            <button id="toggle-raw-btn" class="toggle-raw-btn" ${isRawMode ? 'class="active"' : ''}>
+                                ${isRawMode ? 'Form View' : 'Raw View'}
+                            </button>
+                            <button id="save-entry-btn" class="primary">Save</button>
+                            <button id="delete-entry-btn" class="delete-btn">Delete</button>
+                        </div>
+                    </div>
+                    <div id="editor-content">
+                        ${isRawMode ? generateRawView(entry) : generateFormView(entry, typeOptions)}
+                    </div>
+                </div>
+            `;
+
+            elements.editorContainerEl.innerHTML = editorHtml;
+            setupEditorEventListeners(entryKey);
+        }
+
+        function setupEditorEventListeners(entryKey) {
+            const toggleRawBtn = document.getElementById('toggle-raw-btn');
+            const saveEntryBtn = document.getElementById('save-entry-btn');
+            const deleteEntryBtn = document.getElementById('delete-entry-btn');
+            const addFieldBtn = document.getElementById('add-field-btn');
+            const entryTypeSelect = document.getElementById('entry-type-select');
+            const entryKeyInput = document.getElementById('entry-key-input');
+
+            if (toggleRawBtn) {
+                toggleRawBtn.addEventListener('click', () => toggleRawMode(entryKey));
+            }
+            if (saveEntryBtn) {
+                saveEntryBtn.addEventListener('click', () => handleUpdate(entryKey));
+            }
+            if (deleteEntryBtn) {
+                deleteEntryBtn.addEventListener('click', () => handleDeleteEntry(entryKey));
+            }
+            if (addFieldBtn) {
+                addFieldBtn.addEventListener('click', showFieldModal);
+            }
+            if (entryTypeSelect) {
+                entryTypeSelect.addEventListener('change', (e) => handleEntryTypeChange(e.target.value));
+            }
+            if (entryKeyInput) {
+                entryKeyInput.addEventListener('blur', (e) => handleEntryKeyChange(e.target.value));
+            }
+
+            if (!isRawMode) {
+                buildAuthorOptions();
+                addAuthorDropdownListeners();
+            }
+        }
+
+        function toggleRawMode(entryKey) {
+            isRawMode = !isRawMode;
+            showEditor(entryKey);
+        }
+
+        function handleUpdate(entryKey) {
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (!entry) return;
+
+            if (isRawMode) {
+                const rawTextarea = document.getElementById('raw-entry-text');
+                if (rawTextarea) {
+                    try {
+                        const rawText = rawTextarea.value.trim();
+                        const parsed = parseBibtex(rawText);
+                        if (parsed.entries.length > 0) {
+                            const updatedEntry = parsed.entries[0];
+                            entry.type = updatedEntry.type;
+                            entry.key = updatedEntry.key;
+                            entry.fields = updatedEntry.fields;
+                            entry.authors = null;
+                            entry.authorsAreCanonical = false;
+                        }
+                    } catch (error) {
+                        alert('Error parsing BibTeX: ' + error.message);
+                        return;
+                    }
+                }
+            } else {
+                const fieldTextareas = document.querySelectorAll('#editor-content textarea[name]');
+                fieldTextareas.forEach(textarea => {
+                    const fieldName = textarea.name;
+                    const fieldValue = textarea.value.trim();
+                    if (fieldValue) {
+                        entry.fields[fieldName] = fieldValue;
+                    } else {
+                        delete entry.fields[fieldName];
+                    }
+                });
+            }
+
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+            
+            alert('Entry updated successfully!');
+        }
+
+        function showTab(tabName) {
+            elements.tabLiteratureBtn.classList.toggle('active', tabName === 'literature');
+            elements.tabAuthorsBtn.classList.toggle('active', tabName === 'authors');
+            elements.tabVariablesBtn.classList.toggle('active', tabName === 'variables');
+
+            elements.literatureView.classList.toggle('active', tabName === 'literature');
+            elements.authorsView.classList.toggle('active', tabName === 'authors');
+            elements.variablesView.classList.toggle('active', tabName === 'variables');
+
+            if (tabName === 'authors') {
+                renderAuthorsView();
+            } else if (tabName === 'variables') {
+                renderVariablesView();
+            }
+        }
+
+        function showCreateEntryModal() {
+            populateCreateEntryTypeSelect();
+            showModal(elements.createEntryModal);
+            clearFormInputs(elements.createEntryModal);
+            elements.createEntryKey.focus();
+        }
+
+        function populateCreateEntryTypeSelect() {
+            elements.createEntryType.innerHTML = '';
+            BIBTEX_TYPES.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                elements.createEntryType.appendChild(option);
+            });
+            elements.createEntryType.value = 'article';
+        }
+
+        function handleCreateEntry() {
+            const entryType = elements.createEntryType.value.trim();
+            const entryKey = elements.createEntryKey.value.trim();
+            const entryTitle = elements.createEntryTitle.value.trim();
+            const entryAuthor = elements.createEntryAuthor.value.trim();
+            const entryYear = elements.createEntryYear.value.trim();
+
+            if (!validateRequired(entryKey, 'Citation key')) {
+                elements.createEntryKey.focus();
+                return;
+            }
+
+            if (!checkDuplicateKey(entryKey)) {
+                elements.createEntryKey.focus();
+                return;
+            }
+
+            const newEntry = {
+                type: entryType,
+                key: entryKey,
+                fields: {}
+            };
+
+            if (entryTitle) newEntry.fields.title = entryTitle;
+            if (entryAuthor) newEntry.fields.author = entryAuthor;
+            if (entryYear) newEntry.fields.year = entryYear;
+
+            bibEntries.push(newEntry);
+
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+
+            showTab('literature');
+            showEditor(entryKey);
+
+            hideModal(elements.createEntryModal);
+        }
+
+        function handleDeleteEntry(entryKey) {
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (!entry) {
+                alert('Entry not found.');
+                return;
+            }
+
+            const confirmed = confirm(`Are you sure you want to delete the entry "${entryKey}"?\n\nThis action cannot be undone.`);
+            if (!confirmed) return;
+
+            const index = bibEntries.findIndex(e => e.key === entryKey);
+            if (index > -1) {
+                bibEntries.splice(index, 1);
+            }
+
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+
+            elements.editorContainerEl.innerHTML = '<div id="editor-placeholder"><h2>Select an entry to view or edit it.</h2></div>';
+            activeEntryKey = null;
+        }
+
+        function showFieldModal() {
+            populateFieldTypeSelect();
+            showModal(elements.fieldModal);
+            elements.fieldTypeSelect.value = '';
+            elements.fieldValueInput.value = '';
+            elements.fieldTypeSelect.focus();
+        }
+
+        function populateFieldTypeSelect() {
+            elements.fieldTypeSelect.innerHTML = '<option value="">Select a field...</option>';
+            
+            const entry = bibEntries.find(e => e.key === activeEntryKey);
+            const existingFields = entry ? Object.keys(entry.fields) : [];
+            
+            BIBTEX_FIELDS.forEach(field => {
+                if (!existingFields.includes(field)) {
+                    const option = document.createElement('option');
+                    option.value = field;
+                    option.textContent = field;
+                    elements.fieldTypeSelect.appendChild(option);
+                }
+            });
+        }
+
+        function handleAddField() {
+            const fieldType = elements.fieldTypeSelect.value.trim();
+            const fieldValue = elements.fieldValueInput.value.trim();
+
+            if (!validateRequired(fieldType, 'Field type')) return;
+            if (!validateRequired(fieldValue, 'Field value')) return;
+
+            const entry = bibEntries.find(e => e.key === activeEntryKey);
+            if (!entry) {
+                alert('No active entry found.');
+                return;
+            }
+
+            if (entry.fields.hasOwnProperty(fieldType)) {
+                const overwrite = confirm(`The field "${fieldType}" already exists. Do you want to overwrite it?`);
+                if (!overwrite) return;
+            }
+
+            entry.fields[fieldType] = fieldValue;
+
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+            showEditor(activeEntryKey);
+
+            hideModal(elements.fieldModal);
+        }
+
+        function handleEntryTypeChange(newType) {
+            const entry = bibEntries.find(e => e.key === activeEntryKey);
+            if (entry) {
+                entry.type = newType;
+                processedEntries = processEntries(bibEntries, stringVariables);
+                updateView();
+                showEditor(activeEntryKey);
+            }
+        }
+
+        function handleEntryKeyChange(newKey) {
+            if (!validateRequired(newKey, 'Entry key')) return;
+            if (!checkDuplicateKey(newKey, activeEntryKey)) return;
+
+            const entry = bibEntries.find(e => e.key === activeEntryKey);
+            if (entry) {
+                entry.key = newKey;
+                activeEntryKey = newKey;
+                processedEntries = processEntries(bibEntries, stringVariables);
+                populateAuthorFilter(processedEntries);
+                updateView();
+                showEditor(activeEntryKey);
+            }
+        }
+
+        function handleAuthorFilterInput() {
+            const value = elements.authorFilterInput.value.trim();
+            currentAuthorFilter = value;
+            populateAuthorDropdown(value);
+            showAuthorDropdown();
+            updateView();
+        }
+
+        function handleAuthorFilterKeydown(e) {
+            const options = elements.authorFilterDropdown.querySelectorAll('.combobox-option');
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlightedOptionIndex = Math.min(highlightedOptionIndex + 1, options.length - 1);
+                updateHighlighting();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlightedOptionIndex = Math.max(highlightedOptionIndex - 1, -1);
+                updateHighlighting();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (highlightedOptionIndex >= 0 && options[highlightedOptionIndex]) {
+                    selectAuthorOption(options[highlightedOptionIndex].dataset.value);
+                }
+                hideAuthorDropdown();
+            } else if (e.key === 'Escape') {
+                hideAuthorDropdown();
+            }
+        }
+
+        function showAuthorDropdown() {
+            populateAuthorDropdown(elements.authorFilterInput.value);
+            elements.authorFilterDropdown.classList.add('show');
+            highlightedOptionIndex = -1;
+        }
+
+        function hideAuthorDropdown() {
+            elements.authorFilterDropdown.classList.remove('show');
+            highlightedOptionIndex = -1;
+        }
+
+        function toggleAuthorDropdown() {
+            if (elements.authorFilterDropdown.classList.contains('show')) {
+                hideAuthorDropdown();
+            } else {
+                elements.authorFilterInput.focus();
+                showAuthorDropdown();
+            }
+        }
+
+        function populateAuthorDropdown(filterText = '') {
+            const lowerFilter = filterText.toLowerCase();
+            if (!allAuthorOptions || !Array.isArray(allAuthorOptions)) {
+                allAuthorOptions = [];
+            }
+            const filteredAuthors = allAuthorOptions.filter(author => 
+                author.toLowerCase().includes(lowerFilter)
+            );
+
+            let optionsHtml = '<div class="combobox-option" data-value="">All Authors</div>';
+            filteredAuthors.forEach(author => {
+                const isSelected = currentAuthorFilter === author;
+                const selectedClass = isSelected ? ' selected' : '';
+                optionsHtml += `<div class="combobox-option${selectedClass}" data-value="${author}">${author}</div>`;
+            });
+
+            elements.authorFilterDropdown.innerHTML = optionsHtml;
+
+            elements.authorFilterDropdown.querySelectorAll('.combobox-option').forEach(option => {
+                option.addEventListener('click', (e) => {
+                    selectAuthorOption(e.target.dataset.value);
+                    hideAuthorDropdown();
+                });
+            });
+        }
+
+        function selectAuthorOption(value) {
+            currentAuthorFilter = value;
+            elements.authorFilterInput.value = value;
+            updateView();
+        }
+
+        function updateHighlighting() {
+            const options = elements.authorFilterDropdown.querySelectorAll('.combobox-option');
+            options.forEach((option, index) => {
+                option.classList.toggle('highlighted', index === highlightedOptionIndex);
+            });
+        }
+
+        function renderAuthorsView() {
+            const searchTerm = elements.authorSearchInput.value.toLowerCase().trim();
+            const allAuthorsList = [...allAuthors].sort((a, b) => a.localeCompare(b));
+            
+            const filteredAuthors = searchTerm 
+                ? allAuthorsList.filter(author => author.toLowerCase().includes(searchTerm))
+                : allAuthorsList;
+            
+            elements.authorListContainer.innerHTML = '';
+            
+            filteredAuthors.forEach(author => {
+                const authorEl = document.createElement('div');
+                authorEl.className = 'author-list-item';
+                authorEl.textContent = author;
+                authorEl.dataset.authorName = author;
+                authorEl.addEventListener('click', (e) => {
+                    document.querySelectorAll('.author-list-item.active').forEach(item => item.classList.remove('active'));
+                    e.target.classList.add('active');
+                    renderWorksForAuthor(author);
+                });
+                elements.authorListContainer.appendChild(authorEl);
+            });
+        }
+        
+        function renderWorksForAuthor(authorName) {
+            const works = processedEntries.filter(entry => entry.authors.includes(authorName));
+            elements.authorWorksContainer.innerHTML = '';
+
+            if (works.length === 0) {
+                 elements.authorWorksContainer.innerHTML = `<div class="editor-placeholder"><h2>No works found for this author.</h2></div>`;
+                 return;
+            }
+
+            works.forEach(entry => {
+                const card = createEntryCard(entry);
+                elements.authorWorksContainer.appendChild(card);
+            });
+        }
+        
+        function renderVariablesView() {
+            const searchTerm = elements.variablesSearchInput.value.toLowerCase().trim();
+            const sortBy = elements.sortVariablesSelect.value;
+            
+            const allVariables = Object.entries(stringVariables);
+            const filteredVariables = searchTerm 
+                ? allVariables.filter(([key, value]) => 
+                    key.toLowerCase().includes(searchTerm) || value.toLowerCase().includes(searchTerm))
+                : allVariables;
+            
+            const sortedVariables = filteredVariables.sort((a, b) => {
+                const [keyA, valueA] = a;
+                const [keyB, valueB] = b;
+                if (sortBy === 'value') {
+                    return valueA.localeCompare(valueB);
+                }
+                return keyA.localeCompare(keyB);
+            });
+
+            if (sortedVariables.length === 0) {
+                const message = searchTerm ? 'No variables match your search.' : 'No string variables found.';
+                elements.variablesListContainer.innerHTML = `<div class="editor-placeholder"><h2>${message}</h2></div>`;
+                return;
+            }
+
+            let tableHtml = '<table class="variables-table"><thead><tr><th>Key</th><th>Value</th><th>Actions</th></tr></thead><tbody>';
+            sortedVariables.forEach(([key, value]) => {
+                const isHighlighted = highlightedVariable === key;
+                const highlightClass = isHighlighted ? ' variable-row-highlighted' : '';
+                tableHtml += `
+                    <tr class="variable-row${highlightClass}" data-key="${key}">
+                        <td class="variable-key">${key}</td>
+                        <td class="variable-value variable-cell-editable" data-field="value">${value}</td>
+                        <td>
+                            <button class="edit-variable-btn" data-key="${key}" title="Edit value">Edit</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tableHtml += '</tbody></table>';
+
+            elements.variablesListContainer.innerHTML = tableHtml;
+            
+            addVariableEditListeners();
+            
+            if (highlightedVariable) {
+                setTimeout(() => {
+                    highlightedVariable = null;
+                    renderVariablesView();
+                }, 3000);
+            }
+        }
+
+        function addVariableEditListeners() {
+            document.querySelectorAll('.variable-cell-editable').forEach(cell => {
+                cell.addEventListener('click', (e) => {
+                    if (e.target.closest('.variable-cell-editing')) return;
+                    startEditingVariable(e.target);
+                });
+            });
+            
+            document.querySelectorAll('.edit-variable-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const key = e.target.getAttribute('data-key');
+                    const valueCell = document.querySelector(`tr[data-key="${key}"] .variable-value`);
+                    startEditingVariable(valueCell);
+                });
+            });
+        }
+        
+        function startEditingVariable(cell) {
+            const row = cell.closest('tr');
+            const key = row.getAttribute('data-key');
+            const currentValue = stringVariables[key];
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = currentValue;
+            input.className = 'variable-edit-input';
+            
+            cell.innerHTML = '';
+            cell.appendChild(input);
+            cell.classList.add('variable-cell-editing');
+            
+            input.focus();
+            input.select();
+            
+            const saveEdit = () => {
+                const newValue = input.value.trim();
+                if (newValue && newValue !== currentValue) {
+                    stringVariables[key] = newValue;
+                    processedEntries = processEntries(bibEntries, stringVariables);
+                    populateAuthorFilter(processedEntries);
+                    updateView();
+                }
+                cell.innerHTML = stringVariables[key];
+                cell.classList.remove('variable-cell-editing');
+            };
+            
+            const cancelEdit = () => {
+                cell.innerHTML = currentValue;
+                cell.classList.remove('variable-cell-editing');
+            };
+            
+            input.addEventListener('blur', saveEdit);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    saveEdit();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelEdit();
+                }
+            });
+        }
+
+        function createEntryCard(entry) {
+            const card = document.createElement('div');
+            card.className = 'entry-card';
+            if (entry.key === activeEntryKey) {
+                card.classList.add('active');
+            }
+            card.dataset.key = entry.key;
+
+            const title = entry.processedFields.title || 'No Title';
+            const author = entry.processedFields.author || 'Unknown Author';
+            const year = entry.processedFields.year || 'N/A';
+
+            card.innerHTML = `
+                <div class="title">${title}</div>
+                <div class="author">${author}</div>
+                <div class="meta">
+                    <span class="key">${entry.key}</span> &ndash; ${year} &ndash; <em>@${entry.type}</em>
+                </div>
+            `;
+            card.addEventListener('click', () => {
+                showTab('literature');
+                showEditor(entry.key);
+            });
+            return card;
+        }
+
+        function findAndDisplayDuplicates() {
+            const authors = Array.from(allAuthors);
+            const groups = [];
+            const visited = new Array(authors.length).fill(false);
+            const SIMILARITY_THRESHOLD = 0.85;
+
+            for (let i = 0; i < authors.length; i++) {
+                if (visited[i]) continue;
+                const group = [authors[i]];
+                visited[i] = true;
+                for (let j = i + 1; j < authors.length; j++) {
+                    if (visited[j]) continue;
+                    const similarity = jaroWinkler(authors[i], authors[j]);
+                    if (similarity > SIMILARITY_THRESHOLD) {
+                        group.push(authors[j]);
+                        visited[j] = true;
+                    }
+                }
+                if (group.length > 1) {
+                    groups.push(group);
+                }
+            }
+
+            renderDuplicateGroups(groups);
+        }
+        
+        function renderDuplicateGroups(groups) {
+            elements.duplicatesListEl.innerHTML = '';
+            if (groups.length === 0) {
+                elements.duplicatesListEl.innerHTML = '<p>No potential duplicates found.</p>';
+                return;
+            }
+
+            groups.forEach((group, index) => {
+                const groupEl = document.createElement('div');
+                groupEl.className = 'duplicate-group';
+                
+                const originalNames = group.map(name => `<li>${name}</li>`).join('');
+                
+                groupEl.innerHTML = `
+                    <h4>Potential Duplicates:</h4>
+                    <ul>${originalNames}</ul>
+                    <div class="merge-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="canonical-name-${index}">Correct Name:</label>
+                                <input type="text" id="canonical-name-${index}" value="${group[0]}" />
+                            </div>
+                            <div class="form-group">
+                                <label for="string-key-${index}">New @string Key:</label>
+                                <input type="text" id="string-key-${index}" placeholder="e.g., str_author_name" />
+                            </div>
+                        </div>
+                        <button class="merge-btn primary" data-group-index="${index}">Merge</button>
+                    </div>
+                `;
+                
+                groupEl.querySelector('.merge-btn').addEventListener('click', () => {
+                    const canonicalName = groupEl.querySelector(`#canonical-name-${index}`).value;
+                    const stringKey = groupEl.querySelector(`#string-key-${index}`).value;
+                    handleMerge(group, canonicalName, stringKey);
+                });
+                elements.duplicatesListEl.appendChild(groupEl);
+            });
+        }
+
+        function handleMerge(oldNames, canonicalName, stringKey) {
+            if (!validateRequired(canonicalName, 'Correct Name')) return;
+            
+            const lowerCaseKey = stringKey.toLowerCase().trim();
+            if (!lowerCaseKey || !/^[a-z0-9_]+$/.test(lowerCaseKey)) {
+                alert('New @string Key must not be empty and can only contain letters (a-z), numbers, and underscores.');
+                return;
+            }
+            if (stringVariables.hasOwnProperty(lowerCaseKey)) {
+                alert(`The string key "${stringKey}" is already in use. Please choose another.`);
+                return;
+            }
+
+            stringVariables[lowerCaseKey] = canonicalName;
+            authorStringMappings[canonicalName] = lowerCaseKey;
+
+            processedEntries.forEach(entry => {
+                if (!entry.authors || entry.authors.length === 0) return;
+
+                const originalAuthors = [...entry.authors];
+                let needsUpdate = false;
+                const newAuthors = entry.authors.map(authorName => {
+                    if (oldNames.includes(authorName)) {
+                        needsUpdate = true;
+                        return canonicalName;
+                    }
+                    return authorName;
+                });
+
+                if (needsUpdate) {
+                    entry.authors = newAuthors;
+                    const originalEntry = bibEntries.find(orig => orig.key === entry.key);
+                    if (originalEntry) {
+                        originalEntry.authors = newAuthors;
+                        originalEntry.fields.author = newAuthors.join(' and ');
+                        originalEntry.authorsAreCanonical = true;
+                    }
+                    entry.fields.author = newAuthors.join(' and ');
+                    entry.authorsAreCanonical = true;
+                }
+            });
+
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+            hideModal(elements.duplicatesModal);
+            alert(`Successfully merged ${oldNames.length} authors into the new variable "${lowerCaseKey}".`);
+        }
+
+        function jaroWinkler(s1, s2) {
+            if (s1 === s2) return 1.0;
+
+            let len1 = s1.length;
+            let len2 = s2.length;
+            if (len1 === 0 || len2 === 0) return 0.0;
+
+            const maxDist = Math.floor(Math.max(len1, len2) / 2) - 1;
+            const matches1 = new Array(len1).fill(false);
+            const matches2 = new Array(len2).fill(false);
+            let m = 0;
+
+            for (let i = 0; i < len1; i++) {
+                const start = Math.max(0, i - maxDist);
+                const end = Math.min(len2, i + maxDist + 1);
+                for (let j = start; j < end; j++) {
+                    if (matches2[j]) continue;
+                    if (s1[i] !== s2[j]) continue;
+                    matches1[i] = true;
+                    matches2[j] = true;
+                    m++;
+                    break;
+                }
+            }
+
+            if (m === 0) return 0.0;
+
+            let k = 0;
+            let t = 0;
+            for (let i = 0; i < len1; i++) {
+                if (!matches1[i]) continue;
+                while (!matches2[k]) k++;
+                if (s1[i] !== s2[k]) t++;
+                k++;
+            }
+            t /= 2;
+
+            const jaro = (m / len1 + m / len2 + (m - t) / m) / 3;
+
+            let p = 0.1;
+            let l = 0;
+            const maxL = 4;
+            while (l < maxL && s1[l] === s2[l]) {
+                l++;
+            }
+            return jaro + l * p * (1 - jaro);
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            elements.saveFileBtn.setAttribute('data-filename', file.name);
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                try {
+                    parseAndProcessBibtex(content);
+                    elements.fileInfoEl.textContent = `Loaded: ${file.name}`;
+                    enableControls();
+                } catch (error) {
+                    alert(`Error parsing file: ${error.message}`);
+                    elements.fileInfoEl.textContent = `Error loading ${file.name}`;
+                }
+            };
+            reader.onerror = () => {
+                alert('Failed to read file.');
+                elements.fileInfoEl.textContent = `Error reading ${file.name}`;
+            };
+            reader.readAsText(file);
+        }
+        
+        function parseAndProcessBibtex(content) {
+            const parsed = parseBibtex(content);
+            bibEntries = parsed.entries;
+            stringVariables = parsed.strings;
+
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+        }
+
+        function parseBibtex(text) {
+            const entries = [];
+            const strings = {};
+
+            const cleanText = text.replace(/\r\n/g, '\n').replace(/%.*$/gm, '');
+
+            let cursor = 0;
+            while (cursor < cleanText.length) {
+                const atIndex = cleanText.indexOf('@', cursor);
+                if (atIndex === -1) break;
+
+                const typeMatch = cleanText.substring(atIndex + 1).match(/^(\w+)/);
+                if (!typeMatch) {
+                    cursor = atIndex + 1;
+                    continue;
+                }
+
+                const type = typeMatch[1].toLowerCase();
+                const blockStart = atIndex + 1 + typeMatch[0].length;
+                
+                const block = findBlock(cleanText, blockStart);
+                if (!block) {
+                    cursor = blockStart;
+                    continue;
+                }
+                
+                let content = block.content;
+                cursor = block.endIndex;
+
+                try {
+                    if (type === 'string' || type === 'preamble') {
+                        const { key, value } = parseField(content);
+                        if (key && value) {
+                            strings[key.toLowerCase()] = value;
+                        }
+                        continue;
+                    }
+                    if (type === 'comment') {
+                        continue;
+                    }
+
+                    const keyMatch = content.match(/^\s*([^,]+)\s*,/);
+                    if (!keyMatch) continue;
+
+                    const key = keyMatch[1].trim();
+                    const fieldsText = content.substring(keyMatch[0].length);
+
+                    const entry = {
+                        type,
+                        key,
+                        fields: parseFields(fieldsText)
+                    };
+                    entries.push(entry);
+
+                } catch (e) {
+                    // Skip malformed entries
+                }
+            }
+            return { entries, strings };
+        }
+
+        function findBlock(text, startIndex) {
+            let openBraceIndex = text.indexOf('{', startIndex);
+            let openParenIndex = text.indexOf('(', startIndex);
+            let openChar, closeChar, start;
+
+            if (openParenIndex !== -1 && (openParenIndex < openBraceIndex || openBraceIndex === -1)) {
+                openChar = '(';
+                closeChar = ')';
+                start = openParenIndex;
+            } else if (openBraceIndex !== -1) {
+                openChar = '{';
+                closeChar = '}';
+                start = openBraceIndex;
+            } else {
+                return null;
+            }
+
+            let balance = 1;
+            for (let i = start + 1; i < text.length; i++) {
+                if (text[i] === openChar) balance++;
+                else if (text[i] === closeChar) balance--;
+                if (balance === 0) {
+                    return {
+                        content: text.substring(start + 1, i),
+                        endIndex: i + 1
+                    };
+                }
+            }
+            return null;
+        }
+
+        function parseFields(fieldsText) {
+            const fields = {};
+            let cursor = 0;
+            while (cursor < fieldsText.length) {
+                const nextFieldMatch = fieldsText.substring(cursor).match(/^\s*(\w+)\s*=/);
+                if (!nextFieldMatch) break;
+
+                const key = nextFieldMatch[1].toLowerCase();
+                cursor += nextFieldMatch.index + nextFieldMatch[0].length;
+
+                const { value, length } = parseValue(fieldsText.substring(cursor));
+                fields[key] = value;
+                cursor += length;
+
+                const commaMatch = fieldsText.substring(cursor).match(/^\s*,/);
+                if (commaMatch) {
+                    cursor += commaMatch[0].length;
+                }
+            }
+            return fields;
+        }
+
+        function parseField(fieldText) {
+            const match = fieldText.match(/^\s*(\w+)\s*=\s*([\s\S]+)/);
+            if (!match) return {};
+            const key = match[1];
+            const { value } = parseValue(match[2]);
+            return { key, value };
+        }
+        
+        function parseValue(text) {
+            const startChar = text.match(/^\s*/)[0];
+            const trimmedText = text.trim();
+            let value = '';
+            let consumedLength = 0;
+
+            if (trimmedText.includes('#')) {
+                const match = trimmedText.match(/^([^,]+)/);
+                value = match ? match[0].trim() : '';
+                consumedLength = value.length;
+            } else if (trimmedText.startsWith('{')) {
+                let balance = 1;
+                for (let i = 1; i < trimmedText.length; i++) {
+                    if (trimmedText[i] === '{') balance++;
+                    else if (trimmedText[i] === '}') balance--;
+                    if (balance === 0) {
+                        value = trimmedText.substring(1, i).trim();
+                        consumedLength = i + 1;
+                        break;
+                    }
+                }
+            } else if (trimmedText.startsWith('"')) {
+                 let balance = 1;
+                 for (let i = 1; i < trimmedText.length; i++) {
+                    if (trimmedText[i] === '"' && trimmedText[i-1] !== '\\') {
+                        value = trimmedText.substring(1, i).trim();
+                        consumedLength = i + 1;
+                        break;
+                    }
+                }
+            } else {
+                const match = trimmedText.match(/^([^,]+)/);
+                value = match ? match[0].trim() : '';
+                consumedLength = value.length;
+            }
+
+            return { value: value.replace(/\s\s+/g, ' '), length: startChar.length + consumedLength };
+        }
+
+        function processEntries(entries, strings) {
+            const processed = JSON.parse(JSON.stringify(entries));
+            const entryMap = new Map(processed.map(e => [e.key.toLowerCase(), e]));
+
+            const monthStrings = {
+                jan: "January", feb: "February", mar: "March", apr: "April",
+                may: "May", jun: "June", jul: "July", aug: "August",
+                sep: "September", oct: "October", nov: "November", dec: "December"
+            };
+            const allStrings = { ...strings, ...monthStrings };
+
+            for (const entry of processed) {
+                entry.processedFields = {};
+                for (const fieldKey in entry.fields) {
+                    entry.processedFields[fieldKey] = resolveFieldValue(entry.fields[fieldKey], allStrings);
+                }
+
+                if (entry.fields.author && !entry.authorsAreCanonical) {
+                    entry.authors = parseAuthors(entry.processedFields.author, entry.fields.author);
+                } else if (!entry.fields.author) {
+                    entry.authors = [];
+                }
+            }
+
+            for (const entry of processed) {
+                 if (entry.fields.crossref) {
+                    const targetKey = entry.fields.crossref.toLowerCase();
+                    const targetEntry = entryMap.get(targetKey);
+
+                    if (targetEntry) {
+                        for (const fieldKey in targetEntry.fields) {
+                            if (!entry.fields.hasOwnProperty(fieldKey)) {
+                                entry.fields[fieldKey] = targetEntry.fields[fieldKey];
+                                entry.processedFields[fieldKey] = resolveFieldValue(targetEntry.fields[fieldKey], allStrings);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return processed;
+        }
+        
+        function resolveFieldValue(value, strings) {
+            if (value.includes('#')) {
+                const parts = value.split('#').map(part => part.trim());
+                return parts.map(part => {
+                    const cleanedPart = part.replace(/"/g, '').toLowerCase();
+                    return strings[cleanedPart] || part.replace(/"/g, '');
+                }).join('');
+            }
+            
+            const lowerValue = value.toLowerCase();
+            if (strings.hasOwnProperty(lowerValue)) {
+                return strings[lowerValue];
+            }
+
+            return value;
+        }
+
+        function parseAuthors(authorField, rawAuthorField = null) {
+            if (!authorField) return [];
+            const authors = [];
+            
+            if (rawAuthorField && rawAuthorField.includes('#')) {
+                const parts = rawAuthorField.split('#');
+                const resolvedParts = authorField.split(' and ');
+                let resolvedIndex = 0;
+                
+                for (const part of parts) {
+                    const trimmedPart = part.trim();
+                    if (!trimmedPart || trimmedPart === '"and"' || trimmedPart === '" and "') continue;
+                    
+                    const cleanPart = trimmedPart.replace(/^"(.*)"$/, '$1');
+                    
+                    if (stringVariables.hasOwnProperty(trimmedPart)) {
+                        authors.push(trimmedPart);
+                    } else if (cleanPart && cleanPart !== 'and' && cleanPart !== ' and ') {
+                        authors.push(normalizeAuthorName(cleanPart));
+                    }
+                }
+                
+                return authors;
+            }
+            
+            const authorParts = authorField.split(/ and /i);
+
+            for (const trimmedPart of authorParts) {
+                const cleanPart = trimmedPart.trim();
+                if (!cleanPart) continue;
+
+                if (stringVariables.hasOwnProperty(cleanPart)) {
+                    authors.push(cleanPart);
+                    continue;
+                }
+
+                authors.push(normalizeAuthorName(cleanPart));
+            }
+            
+            return authors;
+        }
+        
+        function normalizeAuthorName(name) {
+            const trimmedName = name.trim();
+            
+            if (trimmedName.startsWith('{') && trimmedName.endsWith('}')) {
+                return trimmedName.substring(1, trimmedName.length - 1);
+            } else if (trimmedName.includes(',')) {
+                const nameParts = trimmedName.split(',').map(p => p.trim());
+                const lastName = nameParts[0];
+                const firstName = nameParts.slice(1).join(', ');
+                return `${lastName}, ${firstName}`;
+            } else {
+                const nameParts = trimmedName.split(/\s+/);
+                const lastName = nameParts.pop();
+                const firstName = nameParts.join(' ');
+                return firstName ? `${lastName}, ${firstName}` : lastName;
+            }
+        }
+
+        function populateAuthorFilter(entries) {
+            if (!allAuthors) {
+                allAuthors = new Set();
+            }
+            allAuthors.clear();
+            
+            if (entries && Array.isArray(entries)) {
+                entries.forEach(entry => {
+                    if (entry.authors && Array.isArray(entry.authors)) {
+                        entry.authors.forEach(author => allAuthors.add(author));
+                    }
+                });
+            }
+
+            allAuthorOptions = [...allAuthors].sort((a, b) => a.localeCompare(b));
+            
+            if (elements.authorFilterInput) elements.authorFilterInput.disabled = false;
+            if (elements.authorFilterDropdownBtn) elements.authorFilterDropdownBtn.disabled = false;
+        }
+
+        function getFieldVariable(fieldValue) {
+            if (!fieldValue.includes('#')) {
+                const lowerValue = fieldValue.toLowerCase();
+                if (stringVariables.hasOwnProperty(lowerValue)) {
+                    return lowerValue;
+                }
+            }
+            return null;
+        }
+
+        window.editVariable = function(variableKey) {
+            highlightedVariable = variableKey;
+            showTab('variables');
+            
+            elements.variablesSearchInput.value = variableKey;
+            renderVariablesView();
+        }
+
+        function buildAuthorOptions() {
+            availableAuthors = [];
+            authorVariableMap = {};
+            
+            if (!allAuthors) {
+                allAuthors = new Set();
+            }
+            
+            allAuthors.forEach(author => {
+                if (!availableAuthors.includes(author)) {
+                    availableAuthors.push(author);
+                }
+            });
+            
+            Object.entries(stringVariables).forEach(([key, value]) => {
+                if (key.includes('author') || key.includes('dukowicz') || key.includes('shashkov') || 
+                    allAuthors.has(value) || value.includes(',')) {
+                    if (!availableAuthors.includes(value)) {
+                        availableAuthors.push(value);
+                        authorVariableMap[value] = key;
+                    }
+                }
+            });
+            
+            availableAuthors.sort((a, b) => a.localeCompare(b));
+        }
+
+        function generateAuthorEditor(entry, field) {
+            if (!entry.authors && entry.fields.author) {
+                entry.authors = parseAuthors(entry.fields.author, entry.fields.author);
+            } else if (!entry.authors) {
+                entry.authors = [];
+            }
+            
+            const authors = entry.authors;
+            
+            let editorHtml = `
+                <div class="author-editor">
+                    <div class="author-editor-header">
+                        <h4 class="author-editor-title">Authors (${authors.length})</h4>
+                        <button type="button" class="add-author-btn" onclick="window.addAuthor('${entry.key}')">Add Author</button>
+                    </div>
+                    <div id="authors-container">`;
+
+            if (authors.length === 0) {
+                editorHtml += '<div class="no-authors">No authors defined. Click "Add Author" to add one.</div>';
+            } else {
+                authors.forEach((author, index) => {
+                    const isVariable = authorVariableMap[author];
+                    editorHtml += generateAuthorItem(entry.key, author, index, isVariable);
+                });
+            }
+
+            editorHtml += `
+                    </div>
+                </div>`;
+            
+            return editorHtml;
+        }
+
+        function generateAuthorItem(entryKey, author, index, variableKey) {
+            const isVariable = !!variableKey;
+            const itemClass = isVariable ? 'author-item is-variable' : 'author-item';
+            
+            const displayValue = isVariable ? stringVariables[variableKey] : author;
+            
+            return `
+                <div class="${itemClass}" data-author-index="${index}">
+                    <div class="author-combobox">
+                        <input type="text" class="author-input" value="${displayValue}" 
+                               data-entry-key="${entryKey}" data-author-index="${index}"
+                               data-variable-key="${isVariable ? variableKey : ''}"
+                               ${isVariable ? 'title="Variable: ' + variableKey + '"' : ''}>
+                        <div class="author-dropdown">
+                        </div>
+                    </div>
+                    <div class="author-controls">
+                        <input type="checkbox" class="variable-checkbox" id="var-${entryKey}-${index}" 
+                               ${isVariable ? 'checked' : ''} 
+                               onchange="window.toggleAuthorVariable('${entryKey}', ${index}, this.checked)">
+                        <label for="var-${entryKey}-${index}" class="variable-label">Variable${isVariable ? ' (' + variableKey + ')' : ''}</label>
+                        <button type="button" class="delete-author-btn" 
+                                onclick="window.removeAuthor('${entryKey}', ${index})">×</button>
+                    </div>
+                </div>`;
+        }
+
+        function populateAuthorDropdown(input, filter = '') {
+            const dropdown = input.nextElementSibling;
+            if (!dropdown) return;
+            
+            const lowerFilter = filter.toLowerCase();
+            
+            const filteredOptions = availableAuthors.filter(author => 
+                author.toLowerCase().includes(lowerFilter)
+            );
+
+            let optionsHtml = '';
+            filteredOptions.forEach(author => {
+                const isVariable = authorVariableMap[author];
+                const optionClass = isVariable ? 'author-option variable' : 'author-option';
+                const displayText = isVariable ? `${author} (${authorVariableMap[author]})` : author;
+                optionsHtml += `<div class="${optionClass}" onclick="window.selectAuthor(this, '${author.replace(/'/g, "\\'")}')">${displayText}</div>`;
+            });
+
+            dropdown.innerHTML = optionsHtml || '<div class="author-option">No matches found</div>';
+        }
+
+        window.showAuthorDropdown = function(input) {
+            buildAuthorOptions();
+            populateAuthorDropdown(input, input.value);
+            const dropdown = input.nextElementSibling;
+            if (dropdown) {
+                dropdown.classList.add('show');
+            }
+        }
+
+        window.filterAuthorDropdown = function(input) {
+            populateAuthorDropdown(input, input.value);
+        }
+
+        window.selectAuthor = function(option, authorName) {
+            const dropdown = option.parentElement;
+            const input = dropdown.previousElementSibling;
+            input.value = authorName;
+            dropdown.classList.remove('show');
+            handleAuthorChange(input);
+        }
+
+        window.handleAuthorChange = function(input) {
+            const entryKey = input.dataset.entryKey;
+            const authorIndex = parseInt(input.dataset.authorIndex);
+            const newValue = input.value.trim();
+            const variableKey = input.dataset.variableKey;
+            
+            const dropdown = input.nextElementSibling;
+            dropdown.classList.remove('show');
+            
+            if (!newValue) {
+                input.value = '';
+                return;
+            }
+            
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (entry && entry.authors) {
+                if (variableKey) {
+                    const choice = confirm(
+                        `This author is currently a variable (${variableKey}).\n\n` +
+                        `Click OK to update the variable value for all entries that use it.\n` +
+                        `Click Cancel to convert this entry to a regular author.`
+                    );
+                    
+                    if (choice) {
+                        const oldValue = stringVariables[variableKey];
+                        stringVariables[variableKey] = newValue;
+                        
+                        processedEntries = processEntries(bibEntries, stringVariables);
+                        populateAuthorFilter(processedEntries);
+                        updateView();
+                        refreshAuthorEditor(entryKey);
+                        
+                        alert(`Updated variable "${variableKey}" value. All entries using this variable have been updated.`);
+                    } else {
+                        entry.authors[authorIndex] = newValue;
+                        entry.authorsAreCanonical = true;
+                        updateAuthorField(entry);
+                        refreshAuthorEditor(entryKey);
+                    }
+                } else {
+                    entry.authors[authorIndex] = newValue;
+                    entry.authorsAreCanonical = true;
+                    updateAuthorField(entry);
+                }
+            }
+        }
+
+        window.addAuthor = function(entryKey) {
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (entry) {
+                if (!entry.authors) {
+                    entry.authors = [];
+                }
+                entry.authors.push('');
+                entry.authorsAreCanonical = true;
+                refreshAuthorEditor(entryKey);
+                
+                setTimeout(() => {
+                    const container = document.getElementById('authors-container');
+                    const inputs = container.querySelectorAll('.author-input');
+                    if (inputs.length > 0) {
+                        inputs[inputs.length - 1].focus();
+                    }
+                }, 50);
+            }
+        }
+
+        window.removeAuthor = function(entryKey, index) {
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (entry && entry.authors && entry.authors.length > index) {
+                entry.authors.splice(index, 1);
+                entry.authorsAreCanonical = true;
+                updateAuthorField(entry);
+                refreshAuthorEditor(entryKey);
+            }
+        }
+
+        window.toggleAuthorVariable = function(entryKey, index, makeVariable) {
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (!entry || !entry.authors || entry.authors.length <= index) return;
+            
+            const authorValue = entry.authors[index];
+            const isCurrentlyVariable = stringVariables.hasOwnProperty(authorValue);
+            const authorName = isCurrentlyVariable ? stringVariables[authorValue] : authorValue;
+            
+            if (!authorName.trim()) {
+                alert('Please enter an author name first.');
+                const checkbox = document.getElementById(`var-${entryKey}-${index}`);
+                if (checkbox) checkbox.checked = false;
+                return;
+            }
+            
+            if (makeVariable && !isCurrentlyVariable) {
+                convertAuthorToVariable(authorName, entryKey, index);
+            } else if (!makeVariable && isCurrentlyVariable) {
+                const variableKey = authorValue;
+                const replaceAll = confirm(`Do you want to replace all occurrences of the variable "${variableKey}" with the regular author name "${authorName}"?`);
+                if (replaceAll) {
+                    replaceVariableWithAuthor(variableKey, authorName);
+                } else {
+                    entry.authors[index] = authorName;
+                    entry.authorsAreCanonical = true;
+                    updateAuthorField(entry);
+                }
+            }
+            
+            refreshAuthorEditor(entryKey);
+        }
+
+        function convertAuthorToVariable(authorName, entryKey, index) {
+            const baseKey = 'str_' + authorName.toLowerCase()
+                .replace(/[^a-z0-9]/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^_|_$/g, '');
+            
+            let variableKey = baseKey;
+            let counter = 1;
+            while (stringVariables[variableKey]) {
+                variableKey = `${baseKey}_${counter}`;
+                counter++;
+            }
+            
+            stringVariables[variableKey] = authorName;
+            
+            let replacementCount = 0;
+            bibEntries.forEach(bibEntry => {
+                if (bibEntry.authors) {
+                    bibEntry.authors = bibEntry.authors.map(author => {
+                        if (author === authorName) {
+                            replacementCount++;
+                            return variableKey;
+                        }
+                        return author;
+                    });
+                    bibEntry.authorsAreCanonical = true;
+                    updateAuthorField(bibEntry);
+                }
+            });
+            
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+            
+            alert(`Created variable "${variableKey}" for author "${authorName}" and replaced ${replacementCount} occurrences.`);
+        }
+
+        function replaceVariableWithAuthor(variableKey, authorName) {
+            let replacementCount = 0;
+            bibEntries.forEach(bibEntry => {
+                if (bibEntry.authors) {
+                    bibEntry.authors = bibEntry.authors.map(author => {
+                        if (author === variableKey) {
+                            replacementCount++;
+                            return authorName;
+                        }
+                        return author;
+                    });
+                    bibEntry.authorsAreCanonical = true;
+                    updateAuthorField(bibEntry);
+                }
+            });
+            
+            delete stringVariables[variableKey];
+            
+            processedEntries = processEntries(bibEntries, stringVariables);
+            populateAuthorFilter(processedEntries);
+            updateView();
+            
+            alert(`Removed variable "${variableKey}" and replaced ${replacementCount} occurrences with regular author name.`);
+        }
+
+        function updateAuthorField(entry) {
+            if (entry.authors && entry.authors.length > 0) {
+                const validAuthors = entry.authors.filter(author => author.trim());
+                if (validAuthors.length > 0) {
+                    const processedAuthors = validAuthors.map(author => {
+                        if (stringVariables.hasOwnProperty(author)) {
+                            return author;
+                        } else {
+                            return author;
+                        }
+                    });
+                    entry.fields.author = processedAuthors.join(' and ');
+                    entry.authors = validAuthors;
+                } else {
+                    delete entry.fields.author;
+                    entry.authors = [];
+                }
+            } else {
+                delete entry.fields.author;
+                entry.authors = [];
+            }
+        }
+
+        function refreshAuthorEditor(entryKey) {
+            const entry = bibEntries.find(e => e.key === entryKey);
+            if (!entry) return;
+            
+            const container = document.getElementById('authors-container');
+            if (!container) return;
+            
+            buildAuthorOptions();
+            
+            if (!entry.authors || entry.authors.length === 0) {
+                container.innerHTML = '<div class="no-authors">No authors defined. Click "Add Author" to add one.</div>';
+            } else {
+                let html = '';
+                entry.authors.forEach((author, index) => {
+                    const isVariableReference = stringVariables.hasOwnProperty(author);
+                    const variableKey = isVariableReference ? author : null;
+                    
+                    html += generateAuthorItem(entryKey, author, index, variableKey);
+                });
+                container.innerHTML = html;
+            }
+            
+            addAuthorDropdownListeners();
+        }
+
+        function addAuthorDropdownListeners() {
+            if (!authorDropdownListenerAdded) {
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.author-combobox')) {
+                        document.querySelectorAll('.author-dropdown.show').forEach(dropdown => {
+                            dropdown.classList.remove('show');
+                        });
+                    }
+                });
+                authorDropdownListenerAdded = true;
+            }
+            
+            const authorInputs = document.querySelectorAll('.author-input');
+            
+            authorInputs.forEach(input => {
+                input.removeEventListener('focus', handleAuthorFocus);
+                input.removeEventListener('input', handleAuthorInput);
+                input.removeEventListener('blur', handleAuthorBlur);
+                input.removeEventListener('keydown', handleAuthorKeydown);
+                
+                input.addEventListener('focus', handleAuthorFocus);
+                input.addEventListener('input', handleAuthorInput);
+                input.addEventListener('blur', handleAuthorBlur);
+                input.addEventListener('keydown', handleAuthorKeydown);
+            });
+        }
+        
+        function handleAuthorFocus(e) {
+            window.showAuthorDropdown(e.target);
+        }
+        
+        function handleAuthorInput(e) {
+            window.filterAuthorDropdown(e.target);
+        }
+        
+        function handleAuthorBlur(e) {
+            setTimeout(() => {
+                window.handleAuthorChange(e.target);
+            }, 150);
+        }
+        
+        function handleAuthorKeydown(e) {
+            if (e.key === 'Escape') {
+                const dropdown = e.target.nextElementSibling;
+                if (dropdown) {
+                    dropdown.classList.remove('show');
+                }
+            }
+        }
+
+        function generateFormView(entry, typeOptions) {
+            let formHtml = `
+                <div class="entry-controls">
+                    <div>
+                        <label for="entry-type-select">Type:</label>
+                        <select id="entry-type-select">${typeOptions}</select>
+                    </div>
+                    <div>
+                        <label for="entry-key-input">Key:</label>
+                        <input type="text" id="entry-key-input" value="${entry.key}">
+                    </div>
+                </div>
+                <div class="form-fields">`;
+
+            formHtml += `
+                <div class="field-group">
+                    <label>author</label>
+                    ${generateAuthorEditor(entry, 'author')}
+                </div>
+            `;
+            
+            for (const field in entry.fields) {
+                if (field === 'author') {
+                    continue;
+                } else {
+                    const fieldValue = entry.fields[field];
+                    const variableKey = getFieldVariable(fieldValue);
+                    
+                    if (variableKey) {
+                        formHtml += `
+                            <div class="field-group field-group-with-variable">
+                                <label for="field-${field}">${field} (Variable: ${variableKey})</label>
+                                <textarea id="field-${field}" name="${field}" rows="2" class="field-disabled" readonly title="This field is backed by a string variable">${fieldValue}</textarea>
+                                <button type="button" class="variable-edit-btn" onclick="editVariable('${variableKey}')" title="Edit the underlying variable">Edit Variable</button>
+                            </div>
+                        `;
+                    } else {
+                        formHtml += `
+                            <div class="field-group">
+                                <label for="field-${field}">${field}</label>
+                                <textarea id="field-${field}" name="${field}" rows="2">${fieldValue}</textarea>
+                            </div>
+                        `;
+                    }
+                }
+            }
+            
+            formHtml += `</div>
+                <div class="add-field-section">
+                    <button id="add-field-btn" class="add-field-btn">Add Field</button>
+                </div>`;
+                
+            return formHtml;
+        }
+
+        function generateRawView(entry) {
+            const rawText = serializeSingleEntry(entry);
+            return `
+                <div class="raw-editor">
+                    <div class="raw-editor-label">Raw BibTeX:</div>
+                    <textarea id="raw-entry-text">${rawText}</textarea>
+                </div>`;
+        }
+
+        function serializeSingleEntry(entry) {
+            let bibtexString = `@${entry.type}{${entry.key}`;
+            
+            const fieldKeys = Object.keys(entry.fields);
+            if (fieldKeys.length > 0) {
+                bibtexString += ',\n';
+                fieldKeys.forEach((key, index) => {
+                    if (key.toLowerCase() === 'author' && entry.authors && entry.authors.length > 0) {
+                        const hasVariables = entry.authors.some(author => stringVariables.hasOwnProperty(author));
+                        
+                        if (hasVariables) {
+                            const authorParts = entry.authors.map(author => {
+                                if (stringVariables.hasOwnProperty(author)) {
+                                    return author;
+                                }
+                                return `"${author.replace(/"/g, '\\"')}"`;
+                            });
+                            const authorValue = authorParts.join(' # " and " # ');
+                            bibtexString += `  ${key} = ${authorValue}`;
+                        } else {
+                            const authorValue = entry.authors.join(' and ');
+                            bibtexString += `  ${key} = {${authorValue}}`;
+                        }
+                    } else {
+                        const value = entry.fields[key];
+                        bibtexString += `  ${key} = {${value}}`;
+                    }
+                    
+                    if (index < fieldKeys.length - 1) {
+                        bibtexString += ',';
+                    }
+                    bibtexString += '\n';
+                });
+            } else {
+                bibtexString += '\n';
+            }
+            
+            bibtexString += '}';
+            return bibtexString;
+        }
+
+        async function saveFile() {
+            const bibtexString = serializeBibtex(bibEntries, stringVariables);
+            const suggestedName = elements.saveFileBtn.getAttribute('data-filename') || 'bibliography.bib';
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName,
+                        types: [{
+                            description: 'BibTeX File',
+                            accept: { 'application/x-bibtex': ['.bib'] },
+                        }],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(bibtexString);
+                    await writable.close();
+                    elements.fileInfoEl.textContent = `Saved to ${handle.name}`;
+                    return;
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        console.error('File System Access API failed:', err);
+                    } else {
+                        return;
+                    }
+                }
+            }
+
+            const blob = new Blob([bibtexString], { type: 'application/x-bibtex;charset=utf-8,' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = suggestedName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            elements.fileInfoEl.textContent = 'File download initiated.';
+        }
+        
+        function serializeBibtex(entries, strings) {
+            let bibtexString = '';
+
+            for (const key in strings) {
+                bibtexString += `@string{${key} = "${strings[key]}"}\n\n`;
+            }
+
+            entries.forEach(entry => {
+                bibtexString += `@${entry.type}{${entry.key},\n`;
+                const fieldKeys = Object.keys(entry.fields);
+                fieldKeys.forEach((key, index) => {
+                    if (key.toLowerCase() === 'author' && entry.authors && entry.authors.length > 0) {
+                        let hasVariables = false;
+                        const authorParts = entry.authors.map(author => {
+                            if (strings.hasOwnProperty(author)) {
+                                hasVariables = true;
+                                return author;
+                            }
+                            return `"${author.replace(/"/g, '\\"')}"`;
+                        });
+
+                        if (hasVariables) {
+                            const authorField = `  author = ${authorParts.join(' # " and " # ')}`;
+                            bibtexString += authorField;
+                        } else {
+                            const simpleAuthorField = `  author = {${entry.authors.join(' and ')}}`;
+                            bibtexString += simpleAuthorField;
+                        }
+                    } else {
+                        const value = entry.fields[key];
+                        bibtexString += `  ${key} = {${value}}`;
+                    }
+
+                    if (index < fieldKeys.length - 1) {
+                        bibtexString += ',';
+                    }
+                    bibtexString += '\n';
+                });
+                bibtexString += '}\n\n';
+            });
+
+            return bibtexString;
+        }
+
+    });
+    </script>
+</body>
+</html>
