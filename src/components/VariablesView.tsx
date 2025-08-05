@@ -1,15 +1,20 @@
-import { useState, useMemo } from 'react';
-import { StringVariables } from '../types/bibtex';
+import React, { useState, useCallback } from 'react';
+// Using simple interface for variables since Citation.js doesn't define them
+
+interface Variable {
+  key: string;
+  value: string;
+}
 
 interface VariablesViewProps {
-  stringVariables: StringVariables;
+  variables: Variable[];
   onUpdateVariable: (key: string, value: string) => void;
   onAddVariable: (key: string, value: string) => void;
   onDeleteVariable: (key: string) => void;
 }
 
 export function VariablesView({ 
-  stringVariables, 
+  variables, 
   onUpdateVariable, 
   onAddVariable, 
   onDeleteVariable 
@@ -19,24 +24,21 @@ export function VariablesView({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState('');
 
-  const sortedVariables = useMemo(() => {
-    const allVariables = Object.entries(stringVariables);
+  const sortedVariables = useCallback(() => {
     const filteredVariables = searchTerm 
-      ? allVariables.filter(([key, value]) => 
-          key.toLowerCase().includes(searchTerm.toLowerCase()) || 
-          value.toLowerCase().includes(searchTerm.toLowerCase())
+      ? variables.filter(variable => 
+          variable.key.toLowerCase().includes(searchTerm.toLowerCase()) || 
+          variable.value.toLowerCase().includes(searchTerm.toLowerCase())
         )
-      : allVariables;
+      : variables;
     
     return filteredVariables.sort((a, b) => {
-      const [keyA, valueA] = a;
-      const [keyB, valueB] = b;
       if (sortBy === 'value') {
-        return valueA.localeCompare(valueB);
+        return a.value.localeCompare(b.value);
       }
-      return keyA.localeCompare(keyB);
+      return a.key.localeCompare(b.key);
     });
-  }, [stringVariables, searchTerm, sortBy]);
+  }, [variables, searchTerm, sortBy]);
 
   const handleEditStart = (key: string, value: string) => {
     setEditingKey(key);
@@ -86,53 +88,58 @@ export function VariablesView({
   };
 
   return (
-    <div className="tab-content active">
-      <div className="toolbar">
+    <div className="flex flex-col flex-grow overflow-hidden">
+      <div className="px-4 py-3 border-b border-gray-200 bg-white flex gap-4 items-center">
         <input
           type="search"
           placeholder="Search variables..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
+          className="flex-grow px-2 py-2 border border-gray-300 rounded text-base"
         />
-        <label htmlFor="sort-variables-select">Sort by:</label>
+        <label htmlFor="sort-variables-select" className="text-sm font-medium text-gray-700">Sort by:</label>
         <select
           id="sort-variables-select"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as 'key' | 'value')}
+          className="px-2 py-2 border border-gray-300 rounded text-base"
         >
           <option value="key">Key</option>
           <option value="value">Value</option>
         </select>
-        <button className="primary" onClick={handleAddVariable}>
+        <button 
+          className="px-4 py-2 text-base border border-blue-600 rounded bg-blue-600 text-white hover:bg-blue-700 cursor-pointer"
+          onClick={handleAddVariable}
+        >
           Add Variable
         </button>
       </div>
       
-      <div className="variables-list-container">
-        {sortedVariables.length === 0 ? (
-          <div className="editor-placeholder">
+      <div className="overflow-y-auto p-6">
+        {sortedVariables().length === 0 ? (
+          <div className="flex justify-center items-center text-gray-500 text-center p-8">
             <h2>
               {searchTerm ? 'No variables match your search.' : 'No string variables found.'}
             </h2>
           </div>
         ) : (
-          <table className="variables-table">
+          <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th>Key</th>
-                <th>Value</th>
-                <th>Actions</th>
+                <th className="border border-gray-300 px-3 py-3 text-left bg-gray-50">Key</th>
+                <th className="border border-gray-300 px-3 py-3 text-left bg-gray-50">Value</th>
+                <th className="border border-gray-300 px-3 py-3 text-left bg-gray-50">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {sortedVariables.map(([key, value]) => (
-                <tr key={key} className="variable-row">
-                  <td className="variable-key">{key}</td>
+              {sortedVariables().map((variable) => (
+                <tr key={variable.key} className="hover:bg-gray-50">
+                  <td className="border border-gray-300 px-3 py-3">{variable.key}</td>
                   <td 
-                    className="variable-value variable-cell-editable"
-                    onClick={() => handleEditStart(key, value)}
+                    className="border border-gray-300 px-3 py-3 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleEditStart(variable.key, variable.value)}
                   >
-                    {editingKey === key ? (
+                    {editingKey === variable.key ? (
                       <input
                         type="text"
                         value={editingValue}
@@ -140,30 +147,23 @@ export function VariablesView({
                         onBlur={handleEditSave}
                         onKeyDown={handleKeyDown}
                         autoFocus
-                        style={{
-                          width: '100%',
-                          padding: '0.25rem',
-                          border: '1px solid var(--primary-color)',
-                          borderRadius: '3px',
-                          fontFamily: 'inherit',
-                          fontSize: 'inherit'
-                        }}
+                        className="w-full px-1 py-1 border border-blue-600 rounded font-inherit text-inherit"
                       />
                     ) : (
-                      value
+                      variable.value
                     )}
                   </td>
-                  <td>
+                  <td className="border border-gray-300 px-3 py-3">
                     <button
-                      onClick={() => handleEditStart(key, value)}
+                      onClick={() => handleEditStart(variable.key, variable.value)}
                       title="Edit value"
-                      style={{ marginRight: '0.5rem' }}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded bg-white hover:bg-gray-50 cursor-pointer mr-2"
                     >
                       Edit
                     </button>
                     <button
-                      className="delete-btn"
-                      onClick={() => handleDeleteVariable(key)}
+                      className="px-3 py-1 text-sm border border-red-600 rounded bg-red-600 text-white hover:bg-red-700 cursor-pointer"
+                      onClick={() => handleDeleteVariable(variable.key)}
                       title="Delete variable"
                     >
                       Delete

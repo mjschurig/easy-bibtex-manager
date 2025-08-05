@@ -81,7 +81,7 @@ export function AuthorFilter({ allAuthors, value, onChange }: AuthorFilterProps)
   };
 
   return (
-    <div className="combobox-container" ref={dropdownRef}>
+    <div className="relative flex min-w-[200px]" ref={dropdownRef}>
       <input
         ref={inputRef}
         type="text"
@@ -91,19 +91,22 @@ export function AuthorFilter({ allAuthors, value, onChange }: AuthorFilterProps)
         onFocus={handleInputFocus}
         onKeyDown={handleKeyDown}
         autoComplete="off"
+        className="flex-1 px-2 py-2 border border-gray-300 rounded-l text-base"
       />
       <button
         type="button"
-        className="combobox-dropdown-btn"
+        className="px-2 py-2 border border-gray-300 border-l-0 rounded-r bg-white cursor-pointer text-sm min-w-[2rem] hover:bg-gray-50"
         onClick={() => setIsOpen(!isOpen)}
       >
         ▼
       </button>
       
       {isOpen && (
-        <div className="combobox-dropdown show">
+        <div className="absolute top-full left-0 right-0 bg-white border border-gray-300 border-t-0 rounded-b max-h-[200px] overflow-y-auto z-[100]">
           <div
-            className={`combobox-option ${highlightedIndex === 0 ? 'highlighted' : ''}`}
+            className={`px-2 py-2 cursor-pointer border-b border-gray-300 ${
+              highlightedIndex === 0 ? 'bg-gray-100' : 'hover:bg-gray-50'
+            }`}
             onClick={handleClearClick}
           >
             All Authors
@@ -111,9 +114,9 @@ export function AuthorFilter({ allAuthors, value, onChange }: AuthorFilterProps)
           {filteredAuthors.map((author, index) => (
             <div
               key={author}
-              className={`combobox-option ${
-                value === author ? 'selected' : ''
-              } ${highlightedIndex === index + 1 ? 'highlighted' : ''}`}
+              className={`px-2 py-2 cursor-pointer border-b border-gray-300 last:border-b-0 ${
+                value === author ? 'bg-blue-600 text-white' : 'hover:bg-gray-50'
+              } ${highlightedIndex === index + 1 ? 'bg-gray-100' : ''}`}
               onClick={() => handleOptionClick(author)}
             >
               {author}

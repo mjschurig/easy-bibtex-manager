@@ -1,0 +1,4 @@
+{
+    "name": "BibTEX manager",
+    "image": "mcr.microsoft.com/devcontainers/javascript-node"
+}
