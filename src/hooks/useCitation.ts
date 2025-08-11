@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from 'react';
+import Cite from 'citation-js';
 import { 
   useCitationData, 
   useCitationActions, 
@@ -29,11 +30,11 @@ export function useFilteredAndSortedEntries() {
     
     // Apply filters
     if (state.filters.searchText) {
-      entries = filterEntriesByText(entries, state.filters.searchText);
+      entries = filterEntriesByText(entries, state.filters.searchText, state.variables);
     }
     
     if (state.filters.authorFilter) {
-      entries = filterEntriesByAuthor(entries, state.filters.authorFilter);
+      entries = filterEntriesByAuthor(entries, state.filters.authorFilter, state.variables);
     }
     
     if (state.filters.yearRange.from || state.filters.yearRange.to) {
@@ -48,7 +49,7 @@ export function useFilteredAndSortedEntries() {
     entries = sortEntries(entries, state.view.sortBy, state.view.sortDirection);
     
     return entries;
-  }, [state.cite.data, state.filters, state.view.sortBy, state.view.sortDirection]);
+  }, [state.cite.data, state.filters, state.view.sortBy, state.view.sortDirection, state.variables]);
 }
 
 // Hook for search functionality
@@ -163,7 +164,7 @@ export function useEntryStats() {
 export function useAuthors() {
   const { state } = useCitationData();
   
-  const authors = useMemo(() => getAllAuthorNames(state.cite.data), [state.cite.data]);
+  const authors = useMemo(() => getAllAuthorNames(state.cite.data, state.variables), [state.cite.data, state.variables]);
   
   const getAuthorStats = (authorName: string) => {
     const entries = getEntriesByAuthor(state.cite.data, authorName);
@@ -292,7 +293,7 @@ export function useQuickActions() {
   const exportSelection = (selectedIds: string[]) => {
     const selectedEntries = state.cite.data.filter((entry: any) => selectedIds.includes(entry.id));
     // Create a temporary Citation.js instance with just selected entries
-    const tempCite = new (require('citation-js').default)(selectedEntries);
+    const tempCite = new Cite(selectedEntries);
     return tempCite.format('bibtex');
   };
   

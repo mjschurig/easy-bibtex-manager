@@ -11,13 +11,6 @@ import {
   ViewMode
 } from '../types/citationTypes';
 import {
-  getAllAuthorNames,
-  filterEntriesByText,
-  filterEntriesByAuthor,
-  filterEntriesByYearRange,
-  filterEntriesByType,
-  sortEntries,
-  getEntriesByAuthor,
   updateEntry as updateCslEntry
 } from '../utils/cslUtils';
 
@@ -397,7 +390,8 @@ function citationReducer(state: EnhancedCitationUIState, action: CitationAction)
       };
 
     case 'START_EDITING_ENTRY':
-      return {
+      console.log('Reducer: START_EDITING_ENTRY with payload:', action.payload);
+      const newState = {
         ...state,
         form: {
           ...state.form,
@@ -405,6 +399,8 @@ function citationReducer(state: EnhancedCitationUIState, action: CitationAction)
           editingVariable: undefined
         }
       };
+      console.log('Reducer: new form state:', newState.form);
+      return newState;
 
     case 'START_EDITING_VARIABLE':
       return {
@@ -443,7 +439,7 @@ interface CitationActionsContextType {
   resetCitation: () => void;
   
   // Entry operations  
-  addEntry: (entry: any) => Promise<string>;
+  addEntry: (entry: any) => string;
   updateEntry: (id: string, updates: any) => Promise<void>;
   deleteEntry: (id: string) => void;
   deleteEntries: (ids: string[]) => void;
@@ -522,14 +518,16 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
       },
       
       // Entry operations - using dispatch only, refs for state access
-      addEntry: async (entry: any): Promise<string> => {
+      addEntry: (entry: any): string => {
         // Generate ID before dispatch if needed
         const entryWithId = { ...entry };
         if (!entryWithId.id) {
           entryWithId.id = generateUniqueIdInReducer(stateRef.current.cite.data, entryWithId.title || 'entry');
         }
         
+        console.log('addEntry: dispatching ADD_ENTRY with payload:', entryWithId);
         dispatch({ type: 'ADD_ENTRY', payload: entryWithId });
+        console.log('addEntry: dispatched, entry should be in state now');
         return entryWithId.id;
       },
       
@@ -650,7 +648,9 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
       
       // UI operations
       startEditingEntry: (id: string) => {
+        console.log('startEditingEntry: called with ID:', id);
         dispatch({ type: 'START_EDITING_ENTRY', payload: id });
+        console.log('startEditingEntry: dispatched START_EDITING_ENTRY');
       },
       
       startEditingVariable: (key: string) => {

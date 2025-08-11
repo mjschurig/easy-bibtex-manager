@@ -1,4 +1,5 @@
 import { formatAuthors, getYear, getTitle } from '../utils/cslUtils';
+import { useCitationData } from '../hooks/useCitation';
 
 interface EntryCardProps {
   entry: any; // CSL-JSON entry
@@ -7,9 +8,10 @@ interface EntryCardProps {
 }
 
 export function EntryCard({ entry, isActive, onClick }: EntryCardProps) {
+  const { state } = useCitationData();
   const title = getTitle(entry) || 'No Title';
   const author = entry.author && entry.author.length > 0 
-    ? formatAuthors(entry.author) 
+    ? formatAuthors(entry.author, state.variables) 
     : 'Unknown Author';
   const year = getYear(entry) || 'N/A';
 

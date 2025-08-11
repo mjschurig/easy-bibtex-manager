@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { CSLAuthor, CSLFieldMetadata } from '../../types/cslFieldMetadata';
-import { useCitationData } from '../../hooks/useCitation';
+import { useCitationData, useCitationActions } from '../../hooks/useCitation';
 
 interface AuthorInputFieldProps {
   value: CSLAuthor[];
@@ -14,11 +14,20 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
   const [inputValue, setInputValue] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
   const { state } = useCitationData();
+  const { addVariable, updateEntry } = useCitationActions();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // Format authors for display
   const formatAuthorForDisplay = (author: CSLAuthor): string => {
     if (author.literal) {
+      // If it's a variable reference, show value (key) format
+      if (state.variables[author.literal]) {
+        return `${state.variables[author.literal]} (${author.literal})`;
+      }
       return author.literal;
     }
     
@@ -130,30 +139,217 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
     setInputValue('');
     setEditingIndex(null);
     setIsEditing(false);
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+  }, []);
+
+  // Replace all occurrences of an author name with a variable reference across all entries
+  const replaceAuthorWithVariableGlobally = useCallback((authorName: string, variableKey: string) => {
+    // Get all entries from state
+    const allEntries = state.cite.data;
+    
+    // Find all entries that contain this author
+    const affectedEntries = allEntries.filter((entry: any) => {
+      return entry.author?.some((author: CSLAuthor) => {
+        if (author.literal && state.variables[author.literal]) {
+          // Already a variable, check if the variable value matches
+          return state.variables[author.literal] === authorName;
+        }
+        // Check direct name matches
+        const entryAuthorName = author.literal || 
+          (author.given && author.family ? `${author.given} ${author.family}` : 
+           author.family || author.given || '');
+        return entryAuthorName === authorName;
+      });
+    });
+
+    // Update each affected entry
+    affectedEntries.forEach((entry: any) => {
+      const updatedAuthors = entry.author?.map((author: CSLAuthor) => {
+        let matches = false;
+        
+        if (author.literal && state.variables[author.literal]) {
+          // Already a variable, check if the variable value matches
+          matches = state.variables[author.literal] === authorName;
+        } else {
+          // Check direct name matches
+          const entryAuthorName = author.literal || 
+            (author.given && author.family ? `${author.given} ${author.family}` : 
+             author.family || author.given || '');
+          matches = entryAuthorName === authorName;
+        }
+        
+        // If this author matches and is not already this variable, replace with variable
+        if (matches && author.literal !== variableKey) {
+          return { literal: variableKey };
+        }
+        
+        return author;
+      });
+      
+      // Update the entry with the new authors
+      if (updatedAuthors) {
+        updateEntry(entry.id, { author: updatedAuthors });
+      }
+    });
+  }, [state.cite.data, state.variables, updateEntry]);
+
+  // Create variable from author name and replace all occurrences
+  const handleCreateVariable = useCallback((authorIndex: number) => {
+    const author = value[authorIndex];
+    if (!author) return;
+
+    // Get the author name (skip if already a variable)
+    if (author.literal && state.variables[author.literal]) {
+      alert('This author is already a variable reference.');
+      return;
+    }
+
+    const authorName = formatAuthorForDisplay(author).replace(/ \([^)]+\)$/, ''); // Remove (key) part if present
+    
+    // Extract last name for variable key
+    const nameParts = authorName.split(' ');
+    const lastName = nameParts[nameParts.length - 1];
+    const variableKey = `str_${lastName}`;
+    
+    // Check if variable already exists
+    if (state.variables[variableKey]) {
+      alert(`Variable "${variableKey}" already exists with value: "${state.variables[variableKey]}"`);
+      return;
+    }
+    
+    // Create the variable
+    addVariable(variableKey, authorName);
+    
+    // Replace all occurrences across all entries
+    replaceAuthorWithVariableGlobally(authorName, variableKey);
+  }, [value, state.variables, addVariable, formatAuthorForDisplay, replaceAuthorWithVariableGlobally]);
+
+  const selectVariable = useCallback((variableKey: string) => {
+    if (isEditing && editingIndex !== null) {
+      // If editing, update the existing author
+      const updatedAuthor = { literal: variableKey };
+      const newAuthors = [...value];
+      newAuthors[editingIndex] = updatedAuthor;
+      onChange(newAuthors);
+      setInputValue('');
+      setEditingIndex(null);
+      setIsEditing(false);
+    } else {
+      // If adding new, create new author with variable
+      const newAuthor = { literal: variableKey };
+      const newAuthors = [...value, newAuthor];
+      onChange(newAuthors);
+      setInputValue('');
+    }
+    
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
+    onValidate(metadata.name, []);
+    
+    // Focus back to input
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing, editingIndex, value, onChange, metadata.name, onValidate]);
+
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    setInputValue(newValue);
+    
+    // Show suggestions if there's input and matches
+    if (newValue.trim()) {
+      setShowSuggestions(true);
+      setSelectedSuggestionIndex(-1);
+    } else {
+      setShowSuggestions(false);
+      setSelectedSuggestionIndex(-1);
+    }
+  }, []);
+
+  // Get filtered variable suggestions based on input
+  const filteredVariables = useMemo(() => {
+    if (!inputValue.trim()) return [];
+    
+    const searchTerm = inputValue.toLowerCase().trim();
+    const variables = Object.entries(state.variables);
+    
+    return variables.filter(([key, value]) => {
+      const keyMatches = key.toLowerCase().includes(searchTerm);
+      const valueMatches = value.toLowerCase().includes(searchTerm);
+      return keyMatches || valueMatches;
+    }).map(([key, value]) => ({ key, value }));
+  }, [inputValue, state.variables]);
+
+  const handleInputFocus = useCallback(() => {
+    if (inputValue.trim() && filteredVariables.length > 0) {
+      setShowSuggestions(true);
+    }
+  }, [inputValue, filteredVariables]);
+
+  const handleInputBlur = useCallback((e: React.FocusEvent) => {
+    // Don't hide suggestions if clicking on a suggestion
+    if (suggestionsRef.current && suggestionsRef.current.contains(e.relatedTarget as Node)) {
+      return;
+    }
+    setShowSuggestions(false);
+    setSelectedSuggestionIndex(-1);
   }, []);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (isEditing) {
-        handleUpdateAuthor();
-      } else {
-        handleAddAuthor();
+    if (showSuggestions && filteredVariables.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev < filteredVariables.length - 1 ? prev + 1 : 0
+        );
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev > 0 ? prev - 1 : filteredVariables.length - 1
+        );
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedSuggestionIndex >= 0) {
+          selectVariable(filteredVariables[selectedSuggestionIndex].key);
+        } else if (isEditing) {
+          handleUpdateAuthor();
+        } else {
+          handleAddAuthor();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSuggestions(false);
+        setSelectedSuggestionIndex(-1);
       }
-    } else if (e.key === 'Escape') {
-      handleCancelEdit();
+    } else {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (isEditing) {
+          handleUpdateAuthor();
+        } else {
+          handleAddAuthor();
+        }
+      } else if (e.key === 'Escape') {
+        handleCancelEdit();
+      }
     }
-  }, [isEditing, handleAddAuthor, handleUpdateAuthor, handleCancelEdit]);
-
-  // Get available variable suggestions
-  const availableVariables = useMemo(() => {
-    return Object.keys(state.variables);
-  }, [state.variables]);
+  }, [showSuggestions, filteredVariables, selectedSuggestionIndex, isEditing, handleAddAuthor, handleUpdateAuthor, handleCancelEdit, selectVariable]);
 
   // Check if input matches a variable
   const isVariableReference = (authorName: string): boolean => {
-    return availableVariables.includes(authorName.trim());
+    return Object.keys(state.variables).includes(authorName.trim());
   };
+
+  // Scroll selected suggestion into view
+  useEffect(() => {
+    if (selectedSuggestionIndex >= 0 && suggestionsRef.current) {
+      const selectedElement = suggestionsRef.current.children[selectedSuggestionIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: 'nearest' });
+      }
+    }
+  }, [selectedSuggestionIndex]);
 
   return (
     <div className="mb-4">
@@ -176,11 +372,6 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
               >
                 <span className={`text-sm ${isVariable ? 'font-mono bg-blue-100 px-1 rounded' : ''}`}>
                   {displayName}
-                  {isVariable && (
-                    <span className="ml-2 text-xs text-blue-600">
-                      (variable: {state.variables[author.literal!]})
-                    </span>
-                  )}
                 </span>
                 <div className="flex gap-2">
                   <button
@@ -190,6 +381,16 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
                   >
                     Edit
                   </button>
+                  {!isVariable && (
+                    <button
+                      type="button"
+                      onClick={() => handleCreateVariable(index)}
+                      className="text-green-600 hover:text-green-800 text-xs"
+                      title="Create variable and replace all occurrences"
+                    >
+                      Variable
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleRemoveAuthor(index)}
@@ -204,18 +405,47 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
         </div>
       )}
       
-      {/* Input field */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyPress}
-          placeholder={isEditing ? "Edit author name..." : metadata.placeholder || "Enter author name"}
-          className={`flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-            errors.length > 0 ? 'border-red-500' : ''
-          }`}
-        />
+      {/* Input field with combobox */}
+      <div className="relative flex gap-2">
+        <div className="relative flex-grow">
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyPress}
+            onFocus={handleInputFocus}
+            onBlur={handleInputBlur}
+            placeholder={isEditing ? "Edit author name..." : metadata.placeholder || "Enter author name"}
+            className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              errors.length > 0 ? 'border-red-500' : ''
+            }`}
+            autoComplete="off"
+          />
+          
+          {/* Variable suggestions dropdown */}
+          {showSuggestions && filteredVariables.length > 0 && (
+            <div
+              ref={suggestionsRef}
+              className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-y-auto"
+            >
+              {filteredVariables.map((variable, index) => (
+                <button
+                  key={variable.key}
+                  type="button"
+                  className={`w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none ${
+                    index === selectedSuggestionIndex ? 'bg-blue-100' : ''
+                  }`}
+                  onClick={() => selectVariable(variable.key)}
+                  onMouseEnter={() => setSelectedSuggestionIndex(index)}
+                >
+                  <div className="font-mono text-sm text-blue-600">{variable.key}</div>
+                  <div className="text-xs text-gray-600 truncate">{variable.value}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         
         {isEditing ? (
           <>
@@ -244,26 +474,7 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
           </button>
         )}
       </div>
-      
-      {/* Available variables suggestion */}
-      {availableVariables.length > 0 && (
-        <div className="mt-2">
-          <p className="text-xs text-gray-600">
-            Available variables: {availableVariables.map((varName, index) => (
-              <span key={varName}>
-                <button
-                  type="button"
-                  onClick={() => setInputValue(varName)}
-                  className="text-blue-600 hover:text-blue-800 font-mono"
-                >
-                  {varName}
-                </button>
-                {index < availableVariables.length - 1 && ', '}
-              </span>
-            ))}
-          </p>
-        </div>
-      )}
+
       
       {/* Help text and errors */}
       {metadata.helpText && (

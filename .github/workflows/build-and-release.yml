@@ -1,0 +1,111 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0, v2.1.3, etc.
+
+permissions:
+  contents: write  # Needed to create releases and push to repository
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run type check
+      run: npm run type-check
+      
+    - name: Run linting
+      run: npm run lint
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.VERSION }}
+        release_name: Release ${{ steps.version.outputs.VERSION }}
+        body: |
+          ## 🚀 BibTeX Manager ${{ steps.version.outputs.VERSION }}
+          
+          ### 📦 Download and Use
+          
+          1. **Download**: Get the `index.html` file from this release
+          2. **Copy**: Place it in the same directory as your `.bib` files
+          3. **Open**: Double-click `index.html` to start managing your bibliography
+          
+          ### ✨ Features
+          
+          - 📁 **Single HTML File** - No installation required, runs anywhere
+          - 🔍 **Advanced Filtering** - Real-time search by text, author, year range, type
+          - ✏️ **Smart Edit Modes** - Form-based editing with validation + raw BibTeX editing
+          - 🔗 **String Variables** - Full support for `@STRING` variables
+          - 👥 **Author-Centric View** - Browse entries by author with statistics
+          - 🤖 **Auto-Discovery** - Automatically finds and loads .bib files when served over HTTP
+          - 💾 **Modern File Handling** - File System Access API with download fallback
+          - 🎨 **Responsive Design** - Works seamlessly on desktop and mobile
+          
+          ### 📊 Technical Details
+          
+          - **Bundle Size:** Single 172KB HTML file (54KB gzipped)
+          - **Technology:** React 18 + TypeScript + Vite
+          - **Validation:** Real-time BibTeX validation with Valibot
+          - **Performance:** Tested with 1000+ entry bibliographies
+          
+          ---
+          
+          **Made with ❤️ for researchers and academics**
+        draft: false
+        prerelease: false
+        
+    - name: Upload index.html to Release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./dist/index.html
+        asset_name: index.html
+        asset_content_type: text/html
+        
+    - name: Configure Git
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+    - name: Update index.html in repository root
+      run: |
+        # Copy the built file to repository root
+        cp dist/index.html index.html
+        
+        # Check if there are changes to commit
+        if git diff --quiet index.html; then
+          echo "No changes to index.html, skipping commit"
+        else
+          git add index.html
+          git commit -m "🚀 Release ${{ steps.version.outputs.VERSION }}: Update index.html from build"
+          git push origin HEAD:main
+        fi

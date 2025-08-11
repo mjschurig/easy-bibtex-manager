@@ -18,11 +18,17 @@ export function getYear(entry: any): string {
 }
 
 // Format authors from CSL-JSON format
-export function formatAuthors(authors: any[]): string {
+export function formatAuthors(authors: any[], variables?: Record<string, string>): string {
   if (!Array.isArray(authors) || authors.length === 0) return '';
   
   return authors.map(author => {
-    if (author.literal) return author.literal;
+    if (author.literal) {
+      // If it's a variable reference and we have variables, show the value
+      if (variables && variables[author.literal]) {
+        return variables[author.literal];
+      }
+      return author.literal;
+    }
     
     const given = author.given || '';
     const family = author.family || '';
@@ -35,11 +41,17 @@ export function formatAuthors(authors: any[]): string {
 }
 
 // Format authors in "Last, First" format
-export function formatAuthorsLastFirst(authors: any[]): string {
+export function formatAuthorsLastFirst(authors: any[], variables?: Record<string, string>): string {
   if (!Array.isArray(authors) || authors.length === 0) return '';
   
   return authors.map(author => {
-    if (author.literal) return author.literal;
+    if (author.literal) {
+      // If it's a variable reference and we have variables, show the value
+      if (variables && variables[author.literal]) {
+        return variables[author.literal];
+      }
+      return author.literal;
+    }
     
     const given = author.given || '';
     const family = author.family || '';
@@ -83,23 +95,33 @@ export function getVolumeIssue(entry: any): string {
 }
 
 // Get all authors as a flat array of names
-export function getAllAuthorNames(entries: any[]): string[] {
+export function getAllAuthorNames(entries: any[], variables?: Record<string, string>): string[] {
   const authorSet = new Set<string>();
   
   entries.forEach(entry => {
     if (entry.author) {
       entry.author.forEach((author: any) => {
-        const name = author.literal || 
-                    (author.family && author.given ? `${author.given} ${author.family}` : 
-                     author.family || author.given || '');
+        let name;
+        if (author.literal) {
+          // If it's a variable reference and we have variables, show the value
+          name = (variables && variables[author.literal]) ? variables[author.literal] : author.literal;
+        } else {
+          name = (author.family && author.given ? `${author.given} ${author.family}` : 
+                  author.family || author.given || '');
+        }
         if (name) authorSet.add(name);
       });
     }
     if (entry.editor) {
       entry.editor.forEach((editor: any) => {
-        const name = editor.literal || 
-                    (editor.family && editor.given ? `${editor.given} ${editor.family}` : 
-                     editor.family || editor.given || '');
+        let name;
+        if (editor.literal) {
+          // If it's a variable reference and we have variables, show the value
+          name = (variables && variables[editor.literal]) ? variables[editor.literal] : editor.literal;
+        } else {
+          name = (editor.family && editor.given ? `${editor.given} ${editor.family}` : 
+                  editor.family || editor.given || '');
+        }
         if (name) authorSet.add(name);
       });
     }
@@ -109,7 +131,7 @@ export function getAllAuthorNames(entries: any[]): string[] {
 }
 
 // Filter entries by text search
-export function filterEntriesByText(entries: any[], searchText: string): any[] {
+export function filterEntriesByText(entries: any[], searchText: string, variables?: Record<string, string>): any[] {
   if (!searchText.trim()) return entries;
   
   const query = searchText.toLowerCase();
@@ -117,8 +139,8 @@ export function filterEntriesByText(entries: any[], searchText: string): any[] {
   return entries.filter(entry => {
     const searchableText = [
       getTitle(entry),
-      formatAuthors(entry.author || []),
-      formatAuthors(entry.editor || []),
+      formatAuthors(entry.author || [], variables),
+      formatAuthors(entry.editor || [], variables),
       getContainerTitle(entry),
       getYear(entry),
       entry.id || '',
@@ -131,7 +153,7 @@ export function filterEntriesByText(entries: any[], searchText: string): any[] {
 }
 
 // Filter entries by author
-export function filterEntriesByAuthor(entries: any[], authorName: string): any[] {
+export function filterEntriesByAuthor(entries: any[], authorName: string, variables?: Record<string, string>): any[] {
   if (!authorName.trim()) return entries;
   
   return entries.filter(entry => {
@@ -141,9 +163,14 @@ export function filterEntriesByAuthor(entries: any[], authorName: string): any[]
     ];
     
     return allAuthors.some(author => {
-      const name = author.literal || 
-                  (author.family && author.given ? `${author.given} ${author.family}` : 
-                   author.family || author.given || '');
+      let name;
+      if (author.literal) {
+        // If it's a variable reference and we have variables, check both the value and the key
+        name = (variables && variables[author.literal]) ? variables[author.literal] : author.literal;
+      } else {
+        name = (author.family && author.given ? `${author.given} ${author.family}` : 
+                author.family || author.given || '');
+      }
       return name.toLowerCase().includes(authorName.toLowerCase());
     });
   });

@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { 
   useCitationData, 
   useCitationActions, 
@@ -9,7 +9,15 @@ import { TabNavigation } from './TabNavigation';
 import { LiteratureView } from './LiteratureView';
 import { AuthorsView } from './AuthorsView';
 import { VariablesView } from './VariablesView';
-import { createNewEntry } from '../utils/cslUtils';
+import { BibFileSelector } from './BibFileSelector';
+import { FileProtocolNotice } from './FileProtocolNotice';
+import { EntryCreationModal } from './EntryCreationModal';
+import { findAllBibFiles } from '../utils/bibFileDiscovery';
+
+interface BibFile {
+  name: string;
+  content: string;
+}
 
 export function CitationManager() {
   const { state } = useCitationData();
@@ -22,11 +30,16 @@ export function CitationManager() {
     addVariable,
     updateVariable,
     deleteVariable,
-    setCurrentTab
+    setCurrentTab,
+    startEditingEntry
   } = useCitationActions();
   const { authors: allAuthors } = useAuthors();
   
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [availableBibFiles, setAvailableBibFiles] = useState<BibFile[]>([]);
+  const [showFileSelector, setShowFileSelector] = useState(false);
+  const [showFileProtocolNotice, setShowFileProtocolNotice] = useState(false);
+  const [showCreateEntryModal, setShowCreateEntryModal] = useState(false);
 
   // Create refs for stable access to context functions (prevents callback recreation)
   const updateEntryRef = useRef(updateEntry);
@@ -50,25 +63,40 @@ export function CitationManager() {
     [state.variables]
   );
 
-  // Auto-load sample.bib on startup
+  // Auto-discover and load .bib files on startup
   useEffect(() => {
-    const loadSampleFile = async () => {
+    const discoverAndLoadBibFiles = async () => {
       try {
-        const response = await fetch('/sample.bib');
-        if (response.ok) {
-          const content = await response.text();
-          await loadFromBibTeX(content, 'sample.bib');
+        // Check if running on file:// protocol and show notice
+        if (window.location.protocol === 'file:') {
+          setShowFileProtocolNotice(true);
+          return;
+        }
+
+        const foundFiles = await findAllBibFiles();
+        
+        if (foundFiles.length === 0) {
+          // No .bib files found, do nothing
+          console.log('No BibTeX files found in the same directory');
+        } else if (foundFiles.length === 1) {
+          // One file found, load it directly
+          const file = foundFiles[0];
+          console.log(`Auto-loading ${file.name}`);
+          await loadFromBibTeX(file.content, file.name);
         } else {
-          console.error('Failed to load sample.bib:', response.statusText);
+          // Multiple files found, show selection modal
+          console.log(`Found ${foundFiles.length} BibTeX files, showing selector`);
+          setAvailableBibFiles(foundFiles);
+          setShowFileSelector(true);
         }
       } catch (error) {
-        console.error('Error loading sample.bib:', error);
+        console.error('Error discovering BibTeX files:', error);
       }
     };
 
-    // Only load if no file is currently loaded
+    // Only discover files if no file is currently loaded
     if (!state.isLoaded) {
-      loadSampleFile();
+      discoverAndLoadBibFiles();
     }
   }, [loadFromBibTeX, state.isLoaded]);
 
@@ -136,17 +164,27 @@ export function CitationManager() {
     URL.revokeObjectURL(url);
   }, [state.isLoaded, state.filename, exportToBibTeX]);
 
-  const handleCreateEntry = useCallback(async () => {
-    const id = prompt('Enter citation key:');
-    if (!id?.trim()) return;
+  const handleCreateEntry = useCallback(() => {
+    setShowCreateEntryModal(true);
+  }, []);
 
-    try {
-      const newEntry = createNewEntry(id.trim(), 'article-journal');
-      await addEntry(newEntry);
-    } catch (error) {
-      alert(`Error creating entry: ${error}`);
-    }
-  }, [addEntry]);
+  const handleCloseCreateEntryModal = useCallback(() => {
+    setShowCreateEntryModal(false);
+  }, []);
+
+  const handleCreateNewEntry = useCallback((newEntry: any) => {
+    console.log('Creating new entry:', newEntry);
+    
+    // Add the entry to state
+    const entryId = addEntry(newEntry);
+    console.log('Added entry with ID:', entryId);
+    
+    // Switch to literature tab and start editing the new entry
+    setCurrentTab('literature');
+    startEditingEntry(entryId);
+    
+    console.log('New entry created and opened for editing');
+  }, [addEntry, setCurrentTab, startEditingEntry]);
 
   const handleSelectEntry = useCallback(() => {
     // In the new system, this would be handled by selection state
@@ -197,6 +235,25 @@ export function CitationManager() {
     }
   }, []);
 
+  const handleBibFileSelect = useCallback(async (file: BibFile) => {
+    try {
+      await loadFromBibTeX(file.content, file.name);
+      setShowFileSelector(false);
+      setAvailableBibFiles([]);
+    } catch (error) {
+      alert(`Error loading ${file.name}: ${error}`);
+    }
+  }, [loadFromBibTeX]);
+
+  const handleBibFileSelectorCancel = useCallback(() => {
+    setShowFileSelector(false);
+    setAvailableBibFiles([]);
+  }, []);
+
+  const handleFileProtocolNoticeDismiss = useCallback(() => {
+    setShowFileProtocolNotice(false);
+  }, []);
+
   return (
     <div className="flex flex-col h-screen">
       <input
@@ -244,6 +301,26 @@ export function CitationManager() {
           onDeleteVariable={handleDeleteVariable}
         />
       )}
+
+      {showFileSelector && (
+        <BibFileSelector
+          files={availableBibFiles}
+          onSelect={handleBibFileSelect}
+          onCancel={handleBibFileSelectorCancel}
+        />
+      )}
+
+      {showFileProtocolNotice && (
+        <FileProtocolNotice
+          onDismiss={handleFileProtocolNoticeDismiss}
+        />
+      )}
+
+      <EntryCreationModal
+        isOpen={showCreateEntryModal}
+        onClose={handleCloseCreateEntryModal}
+        onCreateEntry={handleCreateNewEntry}
+      />
     </div>
   );
 } 

@@ -1,6 +1,6 @@
 # BibTeX Manager
 
-A modern, single-file bibliography manager built with React and TypeScript that runs entirely in your web browser. Features advanced type safety, real-time validation, and a sophisticated context-driven architecture.
+A modern, single-file bibliography manager that runs entirely in your web browser. Just copy `index.html` to your bibliography folder and open it - no installation, no setup, no internet required!
 
 ## 🎯 Overview
 
@@ -13,6 +13,7 @@ This is a complete bibliography management application that allows you to open, 
 - ✏️ **Smart Edit Modes** - Form-based editing with validation + raw BibTeX editing
 - 🔗 **String Variables** - Full support for `@STRING` variables with dedicated management UI
 - 👥 **Author-Centric View** - Browse entries by author with detailed statistics
+- 🤖 **Auto-Discovery** - Automatically finds and loads .bib files when served over HTTP
 - 💾 **Modern File Handling** - File System Access API with download fallback
 - 🎨 **Responsive Design** - Works seamlessly on desktop and mobile devices
 - ⚡ **Lightning Fast** - Instant loading, smooth interactions, optimized rendering
@@ -22,12 +23,58 @@ This is a complete bibliography management application that allows you to open, 
 
 ## 🚀 Quick Start
 
-### For Users
+### Simple Setup (3 Steps!)
 
-1. Download the latest `index.html` from the [releases](https://github.com/your-username/bibtex-manager/releases)
-2. Open the file in any modern web browser
-3. Click "Open File" to load your `.bib` file
-4. Start managing your bibliography with advanced features!
+1. **Download**: Get `index.html` from the [releases](https://github.com/your-username/bibtex-manager/releases) or use the one in this repository in dist/index.html
+2. **Copy**: Place `index.html` in the same directory as your `.bib` file(s)
+3. **Open**: Double-click `index.html` to open it in your browser
+
+That's it! The app will automatically find and load your bibliography files.
+
+```
+📁 my-research-folder/
+├── index.html          ← The BibTeX Manager
+├── references.bib      ← Your bibliography
+├── paper.bib          ← Another bibliography
+└── my-paper.pdf       ← Your other files
+```
+
+### Advanced Usage
+
+**For best performance** (auto-discovery of multiple .bib files):
+- Open terminal in your folder
+- Run: `python3 -m http.server 8080` (or any web server)
+- Open: `http://localhost:8080` in your browser
+
+**Manual file selection**:
+- If auto-discovery doesn't work, use the "Open File" button to select your `.bib` file manually
+
+**Try it now**: This repository includes `index.html` and `example.bib` - clone or download the repo and open `index.html` to see it in action!
+
+## 📦 Releases
+
+Releases are automatically created when version tags are pushed to the repository. Each release includes:
+
+- **Ready-to-use `index.html`** - Download and use immediately
+- **Automatic builds** - Triggered by version tags (e.g., `v1.0.0`)
+- **Release notes** - Feature highlights and technical notes
+- **Repository updates** - Latest `index.html` committed to main branch
+
+### Creating a Release
+
+```bash
+# Tag a new version
+git tag v1.0.0
+git push origin v1.0.0
+
+# GitHub Actions will automatically:
+# 1. Build the application
+# 2. Create a GitHub release
+# 3. Attach index.html as release asset
+# 4. Update index.html in repository root
+```
+
+## 👨‍💻 Development
 
 ### For Developers
 

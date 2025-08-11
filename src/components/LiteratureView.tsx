@@ -45,6 +45,13 @@ export function LiteratureView({
   const activeEntry = state.form.editingEntry 
     ? state.cite.data.find((entry: CSLEntry) => entry.id === state.form.editingEntry)
     : null;
+    
+  // Debug logging
+  React.useEffect(() => {
+    console.log('LiteratureView: editingEntry changed to:', state.form.editingEntry);
+    console.log('LiteratureView: activeEntry found:', activeEntry ? activeEntry.id : 'none');
+    console.log('LiteratureView: total entries in cite.data:', state.cite.data.length);
+  }, [state.form.editingEntry, activeEntry, state.cite.data.length]);
 
   const handleEntrySelect = useCallback((id: string) => {
     setSelectedEntryKey(id);
