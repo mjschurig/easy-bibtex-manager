@@ -79,30 +79,10 @@ jobs:
           ### 📦 Download and Use
           
           1. **Download**: Get the `index.html` file from this release
-          2. **Copy**: Place it in the same directory as your `.bib` files
-          3. **Open**: Double-click `index.html` to start managing your bibliography
+          2. **Open**: Double-click `index.html` to open in your browser
+          3. **Load**: Use "Open File" button to select your `.bib` file
           
-          ### ✨ Features
-          
-          - 📁 **Single HTML File** - No installation required, runs anywhere
-          - 🔍 **Advanced Filtering** - Real-time search by text, author, year range, type
-          - ✏️ **Smart Edit Modes** - Form-based editing with validation + raw BibTeX editing
-          - 🔗 **String Variables** - Full support for `@STRING` variables
-          - 👥 **Author-Centric View** - Browse entries by author with statistics
-          - 🤖 **Auto-Discovery** - Automatically finds and loads .bib files when served over HTTP
-          - 💾 **Modern File Handling** - File System Access API with download fallback
-          - 🎨 **Responsive Design** - Works seamlessly on desktop and mobile
-          
-          ### 📊 Technical Details
-          
-          - **Bundle Size:** Single 172KB HTML file (54KB gzipped)
-          - **Technology:** React 18 + TypeScript + Vite
-          - **Validation:** Real-time BibTeX validation with Valibot
-          - **Performance:** Tested with 1000+ entry bibliographies
-          
-          ---
-          
-          **Made with ❤️ for researchers and academics**
+          A modern, single-file bibliography manager - no installation required!
         files: |
           ./dist/index.html
         draft: false
