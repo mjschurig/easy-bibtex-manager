@@ -10,9 +10,9 @@ import { LiteratureView } from './LiteratureView';
 import { AuthorsView } from './AuthorsView';
 import { VariablesView } from './VariablesView';
 import { BibFileSelector } from './BibFileSelector';
-import { FileProtocolNotice } from './FileProtocolNotice';
+
 import { EntryCreationModal } from './EntryCreationModal';
-import { findAllBibFiles } from '../utils/bibFileDiscovery';
+
 
 interface BibFile {
   name: string;
@@ -38,7 +38,7 @@ export function CitationManager() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [availableBibFiles, setAvailableBibFiles] = useState<BibFile[]>([]);
   const [showFileSelector, setShowFileSelector] = useState(false);
-  const [showFileProtocolNotice, setShowFileProtocolNotice] = useState(false);
+
   const [showCreateEntryModal, setShowCreateEntryModal] = useState(false);
 
   // Create refs for stable access to context functions (prevents callback recreation)
@@ -63,42 +63,12 @@ export function CitationManager() {
     [state.variables]
   );
 
-  // Auto-discover and load .bib files on startup
+  // Show file selector on startup if no file is loaded
   useEffect(() => {
-    const discoverAndLoadBibFiles = async () => {
-      try {
-        // Check if running on file:// protocol and show notice
-        if (window.location.protocol === 'file:') {
-          setShowFileProtocolNotice(true);
-          return;
-        }
-
-        const foundFiles = await findAllBibFiles();
-        
-        if (foundFiles.length === 0) {
-          // No .bib files found, do nothing
-          console.log('No BibTeX files found in the same directory');
-        } else if (foundFiles.length === 1) {
-          // One file found, load it directly
-          const file = foundFiles[0];
-          console.log(`Auto-loading ${file.name}`);
-          await loadFromBibTeX(file.content, file.name);
-        } else {
-          // Multiple files found, show selection modal
-          console.log(`Found ${foundFiles.length} BibTeX files, showing selector`);
-          setAvailableBibFiles(foundFiles);
-          setShowFileSelector(true);
-        }
-      } catch (error) {
-        console.error('Error discovering BibTeX files:', error);
-      }
-    };
-
-    // Only discover files if no file is currently loaded
     if (!state.isLoaded) {
-      discoverAndLoadBibFiles();
+      setShowFileSelector(true);
     }
-  }, [loadFromBibTeX, state.isLoaded]);
+  }, [state.isLoaded]);
 
   const handleFileSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -109,6 +79,8 @@ export function CitationManager() {
       const content = e.target?.result as string;
       try {
         await loadFromBibTeX(content, file.name);
+        setShowFileSelector(false); // Close the selector after successful load
+        setAvailableBibFiles([]);
       } catch (error) {
         alert(`Error parsing file: ${error}`);
       }
@@ -250,9 +222,7 @@ export function CitationManager() {
     setAvailableBibFiles([]);
   }, []);
 
-  const handleFileProtocolNoticeDismiss = useCallback(() => {
-    setShowFileProtocolNotice(false);
-  }, []);
+
 
   return (
     <div className="flex flex-col h-screen">
@@ -307,14 +277,11 @@ export function CitationManager() {
           files={availableBibFiles}
           onSelect={handleBibFileSelect}
           onCancel={handleBibFileSelectorCancel}
+          onFileUpload={handleFileSelect}
         />
       )}
 
-      {showFileProtocolNotice && (
-        <FileProtocolNotice
-          onDismiss={handleFileProtocolNoticeDismiss}
-        />
-      )}
+
 
       <EntryCreationModal
         isOpen={showCreateEntryModal}

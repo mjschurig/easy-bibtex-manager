@@ -13,7 +13,7 @@ This is a complete bibliography management application that allows you to open, 
 - ✏️ **Smart Edit Modes** - Form-based editing with validation + raw BibTeX editing
 - 🔗 **String Variables** - Full support for `@STRING` variables with dedicated management UI
 - 👥 **Author-Centric View** - Browse entries by author with detailed statistics
-- 🤖 **Auto-Discovery** - Automatically finds and loads .bib files when served over HTTP
+
 - 💾 **Modern File Handling** - File System Access API with download fallback
 - 🎨 **Responsive Design** - Works seamlessly on desktop and mobile devices
 - ⚡ **Lightning Fast** - Instant loading, smooth interactions, optimized rendering
@@ -23,31 +23,41 @@ This is a complete bibliography management application that allows you to open, 
 
 ## 🚀 Quick Start
 
-### Simple Setup (3 Steps!)
+### 🌐 Try It Online (Easiest Way!)
 
-1. **Download**: Get `index.html` from the [releases](https://github.com/your-username/bibtex-manager/releases) or use the one in this repository in dist/index.html
-2. **Copy**: Place `index.html` in the same directory as your `.bib` file(s)
+**Start managing your BibTeX files right now:**
+👉 **[Open BibTeX Manager](https://bibtex.equana.org/)** 👈
+
+Simply click the link above and you can immediately:
+- Upload your `.bib` files using the "Open File" button
+- Edit, filter, and manage your bibliography entries
+- Download your updated bibliography when done
+- No installation or setup required!
+
+### 💾 Download for Offline Use
+
+**For offline use or when you prefer local files:**
+
+1. **Download**: Get the latest `index.html` from [GitHub Releases](https://github.com/mjschurig/easy-bibtex-manager/releases/)
+2. **Save**: Place `index.html` anywhere on your computer
 3. **Open**: Double-click `index.html` to open it in your browser
-
-That's it! The app will automatically find and load your bibliography files.
+4. **Load**: Use the "Open File" button to select your `.bib` file(s)
 
 ```
+📁 Downloads/
+├── index.html          ← The BibTeX Manager (can be anywhere)
+
 📁 my-research-folder/
-├── index.html          ← The BibTeX Manager
 ├── references.bib      ← Your bibliography
 ├── paper.bib          ← Another bibliography
 └── my-paper.pdf       ← Your other files
 ```
 
-### Advanced Usage
+### File Management
 
-**For best performance** (auto-discovery of multiple .bib files):
-- Open terminal in your folder
-- Run: `python3 -m http.server 8080` (or any web server)
-- Open: `http://localhost:8080` in your browser
-
-**Manual file selection**:
-- If auto-discovery doesn't work, use the "Open File" button to select your `.bib` file manually
+**Loading files**:
+- Use the "Open File" button to select your `.bib` file from anywhere on your computer
+- The application works with files from any location - no need to place them in the same folder
 
 **Try it now**: This repository includes `index.html` and `example.bib` - clone or download the repo and open `index.html` to see it in action!
 
@@ -80,7 +90,7 @@ git push origin v1.0.0
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/bibtex-manager.git
+git clone https://github.com/mjschurig/easy-bibtex-manager
 cd bibtex-manager
 
 # Install dependencies
