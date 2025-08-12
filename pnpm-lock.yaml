@@ -17,6 +17,9 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      string-metric:
+        specifier: ^0.3.3
+        version: 0.3.3
       valibot:
         specifier: ^1.1.0
         version: 1.1.0(typescript@5.8.3)
@@ -2343,6 +2346,9 @@ packages:
   string-length@4.0.2:
     resolution: {integrity: sha512-+l6rNN5fYHNhZZy41RXsYptCjA2Igmq4EG7kZAYFQI1E1VTXarr6ZPXBg6eq7Y6eK4FEhY6AJlyuFIb/v/S0VQ==}
     engines: {node: '>=10'}
+
+  string-metric@0.3.3:
+    resolution: {integrity: sha512-7LHF1ADhfL2kxiVwJ+x6bJQBvFnm9LtXlDBZm8hVZz73eUst1Ccxs2tuK9CaDyM57pITSFV7fDMEtmyPF5tBUA==}
 
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
@@ -5081,6 +5087,8 @@ snapshots:
     dependencies:
       char-regex: 1.0.2
       strip-ansi: 6.0.1
+
+  string-metric@0.3.3: {}
 
   string-width@4.2.3:
     dependencies:

@@ -4,7 +4,7 @@ A modern, single-file bibliography manager that runs entirely in your web browse
 
 ## 🚀 Quick Start
 
-### 🌐 Try It Online (Easiest Way!)
+### 🌐 Try It Online
 
 **Start managing your BibTeX files right now:**
 👉 **[Open BibTeX Manager](https://bibtex.equana.org/)** 👈
@@ -13,7 +13,9 @@ Simply click the link above and you can immediately:
 - Upload your `.bib` files using the "Open File" button
 - Edit, filter, and manage your bibliography entries
 - Download your updated bibliography when done
-- No installation or setup required!
+
+**📚 For Semantic Scholar Features (Research Paper Import):**
+To access the research paper import functionality, you need to enable CORS in your browser (see setup instructions below).
 
 ### 💾 Download for Offline Use
 
@@ -31,6 +33,68 @@ Simply click the link above and you can immediately:
 - The application works with files from any location - no need to place them in the same folder
 
 **Try it now**: This repository includes `index.html` and `example.bib` - clone or download the repo and open `index.html` to see it in action!
+
+## 🔧 Semantic Scholar Research Paper Import Setup
+
+To use the **Semantic Scholar research paper import** feature, you need to enable CORS (Cross-Origin Resource Sharing) in your browser. This is required because browsers block requests to external APIs for security reasons.
+
+### 🚀 Quick Setup (Recommended)
+
+**Option 1: Browser Extension (Easiest)**
+
+1. **Install a CORS extension:**
+   - **Chrome**: Install [CORS Unblock](https://chromewebstore.google.com/detail/cors-unblock/lfhmikememgdcahcdlaciloancbhjino) or [Allow CORS](https://chromewebstore.google.com/detail/allow-cors-access-control/lhobafahddgcelffkeicbaginigeejlf)
+   - **Firefox**: Install [CORS Everywhere](https://addons.mozilla.org/en-US/firefox/addon/cors-everywhere/)
+   - **Edge**: Install [CORS Unblock](https://microsoftedge.microsoft.com/addons/detail/cors-unblock/hkjklmhkbkdhlgnnfbbcihcajofmjgbh)
+
+2. **Enable the extension:**
+   - Click the extension icon in your browser toolbar
+   - Toggle it ON for the BibTeX Manager website
+   - The icon should show as "enabled" or "green"
+
+3. **Refresh the page and try importing papers!**
+
+**Option 2: Command Line Browser (For Advanced Users)**
+
+If you prefer not to use extensions, you can launch your browser with CORS disabled:
+
+```bash
+# Chrome/Chromium
+google-chrome --disable-web-security --disable-features=VizDisplayCompositor --user-data-dir=/tmp/chrome-cors
+
+# Windows Chrome
+"C:\Program Files\Google\Chrome\Application\chrome.exe" --disable-web-security --disable-features=VizDisplayCompositor --user-data-dir=c:\temp\chrome-cors
+
+# macOS Chrome
+open -n -a /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --args --user-data-dir="/tmp/chrome-cors" --disable-web-security --disable-features=VizDisplayCompositor
+```
+
+### ⚠️ Important Security Notes
+
+- **Only enable CORS for trusted websites** like this BibTeX Manager
+- **Disable the extension when browsing other websites** to maintain security
+- **Never enable CORS for banking or sensitive websites**
+- The browser command line method opens a separate browser instance - use only for this application
+
+### 🔍 Troubleshooting
+
+**If you see CORS errors:**
+
+1. **Check extension status**: Make sure the CORS extension is enabled (green/active)
+2. **Refresh the page**: After enabling CORS, refresh the BibTeX Manager page
+3. **Try different extension**: Some extensions work better with different browsers
+4. **Check browser console**: Press F12 → Console tab to see detailed error messages
+
+**Common error messages:**
+- "CORS Error: Unable to access Semantic Scholar API"
+- "Failed to fetch" 
+- "Access-Control-Allow-Origin" errors
+
+All of these indicate CORS needs to be enabled.
+
+### 📚 Why is CORS needed?
+
+Modern browsers prevent websites from making requests to other domains (like Semantic Scholar's API) for security. While this protects users from malicious websites, it also blocks legitimate use cases like ours. CORS extensions safely allow these requests for specific websites you trust.
 
 ## 👨‍💻 Development Setup
 

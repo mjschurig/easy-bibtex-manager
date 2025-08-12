@@ -12,6 +12,7 @@ import { VariablesView } from './VariablesView';
 import { BibFileSelector } from './BibFileSelector';
 
 import { EntryCreationModal } from './EntryCreationModal';
+import { SemanticScholarImportModal } from './SemanticScholarImportModal';
 
 
 interface BibFile {
@@ -40,6 +41,7 @@ export function CitationManager() {
   const [showFileSelector, setShowFileSelector] = useState(false);
 
   const [showCreateEntryModal, setShowCreateEntryModal] = useState(false);
+  const [showSemanticScholarModal, setShowSemanticScholarModal] = useState(false);
 
   // Create refs for stable access to context functions (prevents callback recreation)
   const updateEntryRef = useRef(updateEntry);
@@ -62,6 +64,19 @@ export function CitationManager() {
     Object.entries(state.variables).map(([key, value]) => ({ key, value })),
     [state.variables]
   );
+
+  // Get existing citation keys for duplicate prevention
+  const existingCitationKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (state.cite?.data) {
+      state.cite.data.forEach((entry: any) => {
+        if (entry.id) {
+          keys.add(entry.id);
+        }
+      });
+    }
+    return keys;
+  }, [state.cite?.data]);
 
   // Show file selector on startup if no file is loaded
   useEffect(() => {
@@ -140,8 +155,16 @@ export function CitationManager() {
     setShowCreateEntryModal(true);
   }, []);
 
+  const handleImportFromSemanticScholar = useCallback(() => {
+    setShowSemanticScholarModal(true);
+  }, []);
+
   const handleCloseCreateEntryModal = useCallback(() => {
     setShowCreateEntryModal(false);
+  }, []);
+
+  const handleCloseSemanticScholarModal = useCallback(() => {
+    setShowSemanticScholarModal(false);
   }, []);
 
   const handleCreateNewEntry = useCallback((newEntry: any) => {
@@ -156,6 +179,20 @@ export function CitationManager() {
     startEditingEntry(entryId);
     
     console.log('New entry created and opened for editing');
+  }, [addEntry, setCurrentTab, startEditingEntry]);
+
+  const handleImportEntry = useCallback((importedEntry: any) => {
+    console.log('Importing entry:', importedEntry);
+    
+    // Add the entry to state
+    const entryId = addEntry(importedEntry);
+    console.log('Imported entry with ID:', entryId);
+    
+    // Switch to literature tab and start editing the new entry
+    setCurrentTab('literature');
+    startEditingEntry(entryId);
+    
+    console.log('Entry imported and opened for editing');
   }, [addEntry, setCurrentTab, startEditingEntry]);
 
   const handleSelectEntry = useCallback(() => {
@@ -240,6 +277,7 @@ export function CitationManager() {
         onOpenFile={handleOpenFile}
         onSaveFile={handleSaveFile}
         onCreateEntry={handleCreateEntry}
+        onImportFromSemanticScholar={handleImportFromSemanticScholar}
       />
       
       <TabNavigation
@@ -287,6 +325,13 @@ export function CitationManager() {
         isOpen={showCreateEntryModal}
         onClose={handleCloseCreateEntryModal}
         onCreateEntry={handleCreateNewEntry}
+      />
+
+      <SemanticScholarImportModal
+        isOpen={showSemanticScholarModal}
+        onClose={handleCloseSemanticScholarModal}
+        onImport={handleImportEntry}
+        existingCitationKeys={existingCitationKeys}
       />
     </div>
   );
