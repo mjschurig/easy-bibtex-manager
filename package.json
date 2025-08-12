@@ -17,6 +17,7 @@
     "citation-js": "^0.7.20",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "string-metric": "^0.3.3",
     "valibot": "^1.1.0"
   },
   "devDependencies": {

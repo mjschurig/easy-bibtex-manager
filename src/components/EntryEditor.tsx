@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { CSLEntry, CSLAuthor, CSLDate, CSL_FIELD_METADATA, CSL_ENTRY_TYPES } from '../types/cslFieldMetadata';
 import { AuthorInputField } from './ui/AuthorInputField';
 import { formatAuthors, getYear } from '../utils/cslUtils';
+import { CitationsReferencesModal } from './CitationsReferencesModal';
 
 interface EntryEditorProps {
   entry: CSLEntry;
@@ -15,6 +16,8 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
   const [isRawMode, setIsRawMode] = useState(false);
   const [editedEntry, setEditedEntry] = useState<CSLEntry>(() => ({ ...entry }));
   const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [showCitationsModal, setShowCitationsModal] = useState(false);
+  const [showReferencesModal, setShowReferencesModal] = useState(false);
 
   // No manual state management needed - the key prop forces fresh component mount
 
@@ -80,6 +83,33 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
       onClose?.();
     }
   }, [entry.id, onDelete, onClose]);
+
+  // Extract Semantic Scholar paper ID from the entry (if available)
+  const getSemanticScholarId = useCallback(() => {
+    // Look for Semantic Scholar ID in various places
+    // 1. Check if the entry has a semantic scholar URL
+    if (entry.URL?.includes('semanticscholar.org/paper/')) {
+      // More flexible regex to match various paper ID formats:
+      // - 40-character hex strings (internal IDs)
+      // - ArXiv IDs (like 1705.10311, 2010.12345v2)
+      // - DOI fragments (like 10.18653/v1/N18-3011)
+      // - Other alphanumeric IDs
+      const match = entry.URL.match(/\/paper\/([a-f0-9A-F\.\/\-_:]+)/);
+      if (match) return match[1];
+    }
+    
+    // 2. Check if there's a semantic scholar ID in the note
+    if (entry.note?.includes('semanticscholar.org/paper/')) {
+      const match = entry.note.match(/semanticscholar\.org\/paper\/([a-f0-9A-F\.\/\-_:]+)/);
+      if (match) return match[1];
+    }
+    
+    // 3. Could also check custom fields if we add them in the future
+    return null;
+  }, [entry.URL, entry.note]);
+
+  const semanticScholarId = getSemanticScholarId();
+  const hasSemanticScholarId = Boolean(semanticScholarId);
 
   const renderField = (fieldName: keyof CSLEntry) => {
     const metadata = CSL_FIELD_METADATA[fieldName];
@@ -252,6 +282,24 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
             </p>
           </div>
           <div className="flex gap-2">
+            {hasSemanticScholarId && (
+              <>
+                <button
+                  onClick={() => setShowCitationsModal(true)}
+                  className="px-3 py-2 text-sm border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50"
+                  title="View papers that cite this work"
+                >
+                  📄 Citations
+                </button>
+                <button
+                  onClick={() => setShowReferencesModal(true)}
+                  className="px-3 py-2 text-sm border border-green-300 text-green-700 rounded-md hover:bg-green-50"
+                  title="View papers cited by this work"
+                >
+                  📚 References
+                </button>
+              </>
+            )}
             <button
               onClick={() => setIsRawMode(!isRawMode)}
               className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
@@ -347,6 +395,26 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
           </button>
         </div>
       </div>
+
+      {/* Citations and References Modals */}
+      {hasSemanticScholarId && semanticScholarId && (
+        <>
+          <CitationsReferencesModal
+            isOpen={showCitationsModal}
+            onClose={() => setShowCitationsModal(false)}
+            paperId={semanticScholarId}
+            paperTitle={entry.title || 'Unknown Title'}
+            type="citations"
+          />
+          <CitationsReferencesModal
+            isOpen={showReferencesModal}
+            onClose={() => setShowReferencesModal(false)}
+            paperId={semanticScholarId}
+            paperTitle={entry.title || 'Unknown Title'}
+            type="references"
+          />
+        </>
+      )}
     </div>
   );
 } 
