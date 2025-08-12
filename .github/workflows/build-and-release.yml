@@ -9,6 +9,7 @@ permissions:
   contents: write  # Needed to create releases and push to repository
   pages: write     # Needed to deploy to GitHub Pages
   id-token: write  # Needed for GitHub Pages deployment
+  actions: read    # Needed to read workflow artifacts
 
 jobs:
   build-and-release:
@@ -46,6 +47,10 @@ jobs:
     - name: Build application
       run: pnpm run build
       
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
     - name: Setup GitHub Pages
       uses: actions/configure-pages@v4
       
@@ -58,18 +63,12 @@ jobs:
       id: deployment
       uses: actions/deploy-pages@v4
       
-    - name: Extract version from tag
-      id: version
-      run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-      
     - name: Create GitHub Release
       id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.version.outputs.VERSION }}
-        release_name: Release ${{ steps.version.outputs.VERSION }}
+        name: Release ${{ steps.version.outputs.VERSION }}
         body: |
           ## 🚀 BibTeX Manager ${{ steps.version.outputs.VERSION }}
           
@@ -104,34 +103,9 @@ jobs:
           ---
           
           **Made with ❤️ for researchers and academics**
+        files: |
+          ./dist/index.html
         draft: false
         prerelease: false
         
-    - name: Upload index.html to Release
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./dist/index.html
-        asset_name: index.html
-        asset_content_type: text/html
-        
-    - name: Configure Git
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-    - name: Update index.html in repository root
-      run: |
-        # Copy the built file to repository root
-        cp dist/index.html index.html
-        
-        # Check if there are changes to commit
-        if git diff --quiet index.html; then
-          echo "No changes to index.html, skipping commit"
-        else
-          git add index.html
-          git commit -m "🚀 Release ${{ steps.version.outputs.VERSION }}: Update index.html from build"
-          git push origin HEAD:main
-        fi
+

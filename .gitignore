@@ -6,5 +6,5 @@ node_modules
 .env.production.local
 
 .pnpm-store
-dist/sample.bib
+dist
 coverage
