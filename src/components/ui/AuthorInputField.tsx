@@ -1,6 +1,27 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { CSLAuthor, CSLFieldMetadata } from '../../types/cslFieldMetadata';
 import { useCitationData, useCitationActions } from '../../hooks/useCitation';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import {
+  CSS,
+} from '@dnd-kit/utilities';
 
 interface AuthorInputFieldProps {
   value: CSLAuthor[];
@@ -8,6 +29,109 @@ interface AuthorInputFieldProps {
   metadata: CSLFieldMetadata;
   errors: string[];
   onValidate: (field: string, errors: string[]) => void;
+}
+
+interface SortableAuthorItemProps {
+  author: CSLAuthor;
+  index: number;
+  displayName: string;
+  isVariable: boolean;
+  onEdit: (index: number) => void;
+  onCreateVariable: (index: number) => void;
+  onRemove: (index: number) => void;
+}
+
+function SortableAuthorItem({
+  index,
+  displayName,
+  isVariable,
+  onEdit,
+  onCreateVariable,
+  onRemove,
+}: SortableAuthorItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: `author-${index}` });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between bg-gray-50 px-3 py-2 rounded border ${
+        isDragging ? 'opacity-50 shadow-lg z-10 scale-105 bg-blue-50 border-blue-200' : 'hover:bg-gray-100'
+      } transition-all duration-200`}
+    >
+      <div className="flex items-center gap-2 flex-grow">
+        {/* Drag Handle */}
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 touch-manipulation p-1"
+          aria-label="Drag to reorder"
+          title="Drag to reorder"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className="pointer-events-none"
+          >
+            <circle cx="4" cy="4" r="1.5" />
+            <circle cx="12" cy="4" r="1.5" />
+            <circle cx="4" cy="8" r="1.5" />
+            <circle cx="12" cy="8" r="1.5" />
+            <circle cx="4" cy="12" r="1.5" />
+            <circle cx="12" cy="12" r="1.5" />
+          </svg>
+        </button>
+        
+        {/* Author Name */}
+        <span className={`text-sm flex-grow ${isVariable ? 'font-mono bg-blue-100 px-1 rounded' : ''}`}>
+          {displayName}
+        </span>
+      </div>
+      
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => onEdit(index)}
+          className="text-blue-600 hover:text-blue-800 text-xs"
+        >
+          Edit
+        </button>
+        {!isVariable && (
+          <button
+            type="button"
+            onClick={() => onCreateVariable(index)}
+            className="text-green-600 hover:text-green-800 text-xs"
+            title="Create variable and replace all occurrences"
+          >
+            Variable
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onRemove(index)}
+          className="text-red-600 hover:text-red-800 text-xs"
+        >
+          Remove
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function AuthorInputField({ value, onChange, metadata, errors, onValidate }: AuthorInputFieldProps) {
@@ -20,6 +144,44 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
   const { addVariable, updateEntry } = useCitationActions();
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // Configure sensors for drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Start dragging after 8px of movement
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end event
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = value.findIndex((_, index) => `author-${index}` === active.id);
+      const newIndex = value.findIndex((_, index) => `author-${index}` === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newAuthors = arrayMove(value, oldIndex, newIndex);
+        onChange(newAuthors);
+        
+        // If we're editing an author that was moved, update the editing index
+        if (editingIndex !== null) {
+          if (editingIndex === oldIndex) {
+            setEditingIndex(newIndex);
+          } else if (editingIndex > oldIndex && editingIndex <= newIndex) {
+            setEditingIndex(editingIndex - 1);
+          } else if (editingIndex < oldIndex && editingIndex >= newIndex) {
+            setEditingIndex(editingIndex + 1);
+          }
+        }
+      }
+    }
+  }, [value, onChange, editingIndex]);
 
   // Format authors for display
   const formatAuthorForDisplay = (author: CSLAuthor): string => {
@@ -358,50 +520,48 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
         {metadata.required && <span className="text-red-500 ml-1">*</span>}
       </label>
       
-      {/* Author list */}
+      {/* Author list with drag and drop */}
       {value.length > 0 && (
-        <div className="mb-3 space-y-2">
-          {value.map((author, index) => {
-            const displayName = formatAuthorForDisplay(author);
-            const isVariable = author.literal && isVariableReference(author.literal);
-            
-            return (
-              <div
-                key={index}
-                className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded border"
-              >
-                <span className={`text-sm ${isVariable ? 'font-mono bg-blue-100 px-1 rounded' : ''}`}>
-                  {displayName}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleEditAuthor(index)}
-                    className="text-blue-600 hover:text-blue-800 text-xs"
-                  >
-                    Edit
-                  </button>
-                  {!isVariable && (
-                    <button
-                      type="button"
-                      onClick={() => handleCreateVariable(index)}
-                      className="text-green-600 hover:text-green-800 text-xs"
-                      title="Create variable and replace all occurrences"
-                    >
-                      Variable
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveAuthor(index)}
-                    className="text-red-600 hover:text-red-800 text-xs"
-                  >
-                    Remove
-                  </button>
-                </div>
+        <div className="mb-3">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+            accessibility={{
+              screenReaderInstructions: {
+                draggable: `
+                  To pick up a sortable item, press the space bar.
+                  While sorting, use the arrow keys to move the item.
+                  Press space again to drop the item in its new position, or press escape to cancel.
+                `,
+              },
+            }}
+          >
+            <SortableContext
+              items={value.map((_, index) => `author-${index}`)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-2">
+                {value.map((author, index) => {
+                  const displayName = formatAuthorForDisplay(author);
+                  const isVariable = Boolean(author.literal && isVariableReference(author.literal));
+                  
+                  return (
+                    <SortableAuthorItem
+                      key={`author-${index}`}
+                      author={author}
+                      index={index}
+                      displayName={displayName}
+                      isVariable={isVariable}
+                      onEdit={handleEditAuthor}
+                      onCreateVariable={handleCreateVariable}
+                      onRemove={handleRemoveAuthor}
+                    />
+                  );
+                })}
               </div>
-            );
-          })}
+            </SortableContext>
+          </DndContext>
         </div>
       )}
       
