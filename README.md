@@ -96,6 +96,8 @@ All of these indicate CORS needs to be enabled.
 
 Modern browsers prevent websites from making requests to other domains (like Semantic Scholar's API) for security. While this protects users from malicious websites, it also blocks legitimate use cases like ours. CORS extensions safely allow these requests for specific websites you trust.
 
+This could be avoided by using a proper server/client setup, but this would make the single and static html file approach impossible. Therefore we use the CORS extension workaround, that allows us to get all this functionality in a single html file and to host that as a static web page on Github pages.
+
 ## 👨‍💻 Development Setup
 
 ### For Developers

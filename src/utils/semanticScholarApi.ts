@@ -301,7 +301,7 @@ export class SemanticScholarApi {
     return this.searchPapers(query, 20);
   }
 
-  static async getPaperCitations(paperId: string, limit: number = 50): Promise<SemanticScholarSearchResponse> {
+  static async getPaperCitations(paperId: string, limit: number = 1000): Promise<SemanticScholarSearchResponse> {
     // Ensure paper ID is properly encoded for URL
     const encodedPaperId = encodeURIComponent(paperId);
     
@@ -355,7 +355,7 @@ export class SemanticScholarApi {
     };
   }
 
-  static async getPaperReferences(paperId: string, limit: number = 50): Promise<SemanticScholarSearchResponse> {
+  static async getPaperReferences(paperId: string, limit: number = 1000): Promise<SemanticScholarSearchResponse> {
     // Ensure paper ID is properly encoded for URL
     const encodedPaperId = encodeURIComponent(paperId);
     
