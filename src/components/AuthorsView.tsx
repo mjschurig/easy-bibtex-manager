@@ -94,11 +94,15 @@ export function AuthorsView({ entries, allAuthors, onSelectEntry }: AuthorsViewP
 
   // Replace all occurrences of an author name with a variable reference
   const replaceAuthorWithVariable = useCallback((authorName: string, variableKey: string) => {
+    // Capture current state values to avoid dependency loops
+    const currentEntries = entries;
+    const currentVariables = state.variables;
+    
     // Find all entries that contain this author
-    const affectedEntries = entries.filter(entry => {
+    const affectedEntries = currentEntries.filter(entry => {
       return entry.author?.some((author: CSLAuthor) => {
         if (author.literal) {
-          const authorValue = state.variables[author.literal] || author.literal;
+          const authorValue = currentVariables[author.literal] || author.literal;
           return authorValue === authorName || author.literal === authorName;
         }
         return (author.given && author.family && `${author.given} ${author.family}` === authorName) ||
@@ -108,10 +112,11 @@ export function AuthorsView({ entries, allAuthors, onSelectEntry }: AuthorsViewP
 
     // Update each affected entry
     affectedEntries.forEach(entry => {
+      let hasChanges = false;
       const updatedAuthors = entry.author?.map((author: CSLAuthor) => {
         let matchesAuthor = false;
         if (author.literal) {
-          const authorValue = state.variables[author.literal] || author.literal;
+          const authorValue = currentVariables[author.literal] || author.literal;
           matchesAuthor = authorValue === authorName || author.literal === authorName;
         } else {
           matchesAuthor = 
@@ -120,19 +125,20 @@ export function AuthorsView({ entries, allAuthors, onSelectEntry }: AuthorsViewP
         }
         
         // If this author matches and is not already a variable, replace with variable
-        if (matchesAuthor && !state.variables[author.literal || '']) {
+        if (matchesAuthor && !currentVariables[author.literal || '']) {
+          hasChanges = true;
           return { literal: variableKey };
         }
         
         return author;
       });
       
-      // Update the entry with the new authors
-      if (updatedAuthors) {
+      // Update the entry with the new authors only if there are actual changes
+      if (hasChanges && updatedAuthors) {
         updateEntry(entry.id, { author: updatedAuthors });
       }
     });
-  }, [entries, state.variables, updateEntry]);
+  }, [updateEntry]); // Remove entries and state.variables dependencies to prevent infinite loops
 
   // Create variable from author name
   const handleCreateVariable = useCallback((authorName: string) => {

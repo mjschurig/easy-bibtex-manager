@@ -307,15 +307,16 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
 
   // Replace all occurrences of an author name with a variable reference across all entries
   const replaceAuthorWithVariableGlobally = useCallback((authorName: string, variableKey: string) => {
-    // Get all entries from state
+    // Capture current state values to avoid dependency loops
     const allEntries = state.cite.data;
+    const currentVariables = state.variables;
     
     // Find all entries that contain this author
     const affectedEntries = allEntries.filter((entry: any) => {
       return entry.author?.some((author: CSLAuthor) => {
-        if (author.literal && state.variables[author.literal]) {
+        if (author.literal && currentVariables[author.literal]) {
           // Already a variable, check if the variable value matches
-          return state.variables[author.literal] === authorName;
+          return currentVariables[author.literal] === authorName;
         }
         // Check direct name matches
         const entryAuthorName = author.literal || 
@@ -327,12 +328,13 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
 
     // Update each affected entry
     affectedEntries.forEach((entry: any) => {
+      let hasChanges = false;
       const updatedAuthors = entry.author?.map((author: CSLAuthor) => {
         let matches = false;
         
-        if (author.literal && state.variables[author.literal]) {
+        if (author.literal && currentVariables[author.literal]) {
           // Already a variable, check if the variable value matches
-          matches = state.variables[author.literal] === authorName;
+          matches = currentVariables[author.literal] === authorName;
         } else {
           // Check direct name matches
           const entryAuthorName = author.literal || 
@@ -343,18 +345,19 @@ export function AuthorInputField({ value, onChange, metadata, errors, onValidate
         
         // If this author matches and is not already this variable, replace with variable
         if (matches && author.literal !== variableKey) {
+          hasChanges = true;
           return { literal: variableKey };
         }
         
         return author;
       });
       
-      // Update the entry with the new authors
-      if (updatedAuthors) {
+      // Update the entry with the new authors only if there are actual changes
+      if (hasChanges && updatedAuthors) {
         updateEntry(entry.id, { author: updatedAuthors });
       }
     });
-  }, [state.cite.data, state.variables, updateEntry]);
+  }, [updateEntry]); // Remove state dependencies to prevent infinite loops
 
   // Create variable from author name and replace all occurrences
   const handleCreateVariable = useCallback((authorIndex: number) => {

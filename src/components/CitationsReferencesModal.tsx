@@ -8,7 +8,9 @@ interface CitationsReferencesModalProps {
   onClose: () => void;
   paperId: string;
   paperTitle: string;
-  type: 'citations' | 'references';
+  type: 'citations' | 'references' | 'recommendations';
+  doi?: string; // Optional DOI for fallback lookup
+  customPapers?: SemanticScholarPaper[]; // For pre-loaded papers (e.g., from POST recommendations)
 }
 
 export function CitationsReferencesModal({ 
@@ -16,7 +18,9 @@ export function CitationsReferencesModal({
   onClose, 
   paperId, 
   paperTitle, 
-  type 
+  type,
+  doi,
+  customPapers 
 }: CitationsReferencesModalProps) {
   const [papers, setPapers] = useState<SemanticScholarPaper[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -79,13 +83,20 @@ export function CitationsReferencesModal({
 
   // Reset state when modal opens or type changes
   useEffect(() => {
-    if (isOpen && paperId) {
-      fetchPapers();
+    if (isOpen) {
+      if (customPapers) {
+        // Use pre-loaded papers (e.g., from POST recommendations)
+        setPapers(customPapers);
+        setError(null);
+        setIsLoading(false);
+      } else if (paperId) {
+        fetchPapers();
+      }
     } else {
       setPapers([]);
       setError(null);
     }
-  }, [isOpen, paperId, type]);
+  }, [isOpen, paperId, type, customPapers]);
 
   // Handle ESC key and click outside
   useEffect(() => {
@@ -130,9 +141,28 @@ export function CitationsReferencesModal({
     setPapers([]);
 
     try {
-      const response = type === 'citations' 
-        ? await SemanticScholarApi.getPaperCitations(paperId)
-        : await SemanticScholarApi.getPaperReferences(paperId);
+      // First, try to fetch paper details to validate the paperId and get DOI if needed
+      let validPaperId = paperId;
+      try {
+        // Use the new function that supports DOI fallback
+        const paperDetails = await SemanticScholarApi.getPaperDetailsByBibId(paperId, doi);
+        validPaperId = paperDetails.paperId; // Use the confirmed paperId from the response
+      } catch (detailError) {
+        // If we can't get paper details, the citations/references call will also fail with the same detailed error
+        throw detailError;
+      }
+
+      // Now fetch citations, references, or recommendations using the validated paperId
+      let response;
+      if (type === 'citations') {
+        response = await SemanticScholarApi.getPaperCitations(validPaperId);
+      } else if (type === 'references') {
+        response = await SemanticScholarApi.getPaperReferences(validPaperId);
+      } else if (type === 'recommendations') {
+        response = await SemanticScholarApi.getPaperRecommendations(validPaperId);
+      } else {
+        throw new Error(`Unsupported type: ${type}`);
+      }
 
       setPapers(response.data);
 
@@ -145,7 +175,7 @@ export function CitationsReferencesModal({
     } finally {
       setIsLoading(false);
     }
-  }, [paperId, type]);
+  }, [paperId, type, doi]);
 
   const handlePaperClick = useCallback((paper: SemanticScholarPaper) => {
     // Open paper in new tab if URL is available
@@ -238,10 +268,13 @@ export function CitationsReferencesModal({
 
   if (!isOpen) return null;
 
-  const title = type === 'citations' ? 'Citations' : 'References';
+  const title = type === 'citations' ? 'Citations' : 
+                type === 'references' ? 'References' : 'Recommendations';
   const description = type === 'citations' 
     ? 'Papers that cite this work'
-    : 'Papers cited by this work';
+    : type === 'references' 
+    ? 'Papers cited by this work'
+    : 'Papers recommended based on this work';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

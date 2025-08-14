@@ -1,6 +1,7 @@
 interface BibFile {
   name: string;
   content: string;
+  type?: 'bib' | 'json';
 }
 
 // Common .bib filename patterns to try
@@ -20,6 +21,22 @@ const COMMON_BIB_NAMES = [
   'sample.bib'
 ];
 
+// Common .json filename patterns to try
+const COMMON_JSON_NAMES = [
+  'bibliography.json',
+  'references.json',
+  'refs.json',
+  'main.json',
+  'paper.json',
+  'thesis.json',
+  'dissertation.json',
+  'citations.json',
+  'sources.json',
+  'lit.json',
+  'library.json',
+  'collection.json'
+];
+
 /**
  * Checks if the current page is running on file:// protocol
  */
@@ -37,14 +54,11 @@ export async function discoverBibFiles(): Promise<BibFile[]> {
   
   // Check if running on file:// protocol
   if (isFileProtocol()) {
-    console.log('Running on file:// protocol - auto-discovery not supported. Please serve over HTTP or use "Open File" button.');
     return foundFiles;
   }
   
   // Get the base URL (directory) of the current page
   const baseUrl = window.location.href.split('/').slice(0, -1).join('/');
-  
-  console.log(`Attempting to discover .bib files at: ${baseUrl}`);
   
   // Try each common filename
   const promises = COMMON_BIB_NAMES.map(async (filename) => {
@@ -58,7 +72,56 @@ export async function discoverBibFiles(): Promise<BibFile[]> {
         // Basic validation: check if it looks like a BibTeX file
         if (isValidBibTeXContent(content)) {
           console.log(`Found valid .bib file: ${filename}`);
-          return { name: filename, content };
+          return { name: filename, content, type: 'bib' as const };
+        }
+      }
+    } catch (error) {
+      // Silently ignore fetch errors (file not found, etc.)
+    }
+    
+    return null;
+  });
+  
+  const results = await Promise.allSettled(promises);
+  
+  // Collect successful results
+  results.forEach((result) => {
+    if (result.status === 'fulfilled' && result.value) {
+      foundFiles.push(result.value);
+    }
+  });
+  
+  return foundFiles;
+}
+
+/**
+ * Attempts to discover .json files in the same directory as the current page
+ * by trying common filename patterns.
+ * Note: This only works when served over HTTP/HTTPS, not file:// protocol
+ */
+export async function discoverJSONFiles(): Promise<BibFile[]> {
+  const foundFiles: BibFile[] = [];
+  
+  // Check if running on file:// protocol
+  if (isFileProtocol()) {
+    return foundFiles;
+  }
+  
+  // Get the base URL (directory) of the current page
+  const baseUrl = window.location.href.split('/').slice(0, -1).join('/');
+  
+  // Try each common filename
+  const promises = COMMON_JSON_NAMES.map(async (filename) => {
+    try {
+      const url = `${baseUrl}/${filename}`;
+      const response = await fetch(url);
+      
+      if (response.ok) {
+        const content = await response.text();
+        
+        // Basic validation: check if it looks like a CSL-JSON file
+        if (isValidCSLJSONContent(content)) {
+          return { name: filename, content, type: 'json' as const };
         }
       }
     } catch (error) {
@@ -102,6 +165,37 @@ function isValidBibTeXContent(content: string): boolean {
 }
 
 /**
+ * Basic validation to check if content looks like CSL-JSON format
+ */
+function isValidCSLJSONContent(content: string): boolean {
+  const trimmed = content.trim();
+  
+  try {
+    const parsed = JSON.parse(trimmed);
+    
+    // Should be an array
+    if (!Array.isArray(parsed)) {
+      return false;
+    }
+    
+    // If empty array, it's valid CSL-JSON
+    if (parsed.length === 0) {
+      return true;
+    }
+    
+    // Check if first item has typical CSL fields
+    const firstItem = parsed[0];
+    return (
+      typeof firstItem === 'object' &&
+      firstItem !== null &&
+      ('id' in firstItem || 'title' in firstItem || 'type' in firstItem)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Attempts to discover custom .bib files by trying additional patterns
  * based on the current HTML filename
  * Note: This only works when served over HTTP/HTTPS, not file:// protocol
@@ -137,8 +231,7 @@ export async function discoverCustomBibFiles(): Promise<BibFile[]> {
           const content = await response.text();
           
           if (isValidBibTeXContent(content)) {
-            console.log(`Found custom .bib file: ${bibFilename}`);
-            return { name: bibFilename, content };
+            return { name: bibFilename, content, type: 'bib' as const };
           }
         }
       } catch (error) {
@@ -161,21 +254,20 @@ export async function discoverCustomBibFiles(): Promise<BibFile[]> {
 }
 
 /**
- * Main function to discover all available .bib files
+ * Main function to discover all available bibliography files (.bib and .json)
  */
 export async function findAllBibFiles(): Promise<BibFile[]> {
-  const [commonFiles, customFiles] = await Promise.all([
+  const [bibFiles, jsonFiles, customFiles] = await Promise.all([
     discoverBibFiles(),
+    discoverJSONFiles(),
     discoverCustomBibFiles()
   ]);
 
 
   
   // Combine and deduplicate by filename
-  const allFiles = [...commonFiles, ...customFiles];
+  const allFiles = [...bibFiles, ...jsonFiles, ...customFiles];
 
-  console.log('allFiles', allFiles);
-  
   const uniqueFiles = allFiles.filter((file, index, arr) => 
     arr.findIndex(f => f.name === file.name) === index
   );

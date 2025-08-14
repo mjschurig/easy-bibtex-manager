@@ -38,6 +38,16 @@ export function TabNavigation({ activeTab, onTabChange }: TabNavigationProps) {
       >
         Variables
       </button>
+      <button
+        className={`px-5 py-3 border-none bg-transparent cursor-pointer text-base border-b-4 mb-[-1px] transition-colors ${
+          activeTab === 'recommendations' 
+            ? 'border-b-blue-600 text-blue-600 font-medium' 
+            : 'border-b-transparent text-gray-700 hover:text-gray-900'
+        }`}
+        onClick={() => onTabChange('recommendations')}
+      >
+        Recommendations
+      </button>
     </nav>
   );
 } 

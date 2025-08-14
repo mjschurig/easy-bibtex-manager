@@ -20,7 +20,7 @@ export type FilterState = {
 export type SortOption = 'author' | 'year' | 'type' | 'title' | 'id';
 export type SortDirection = 'asc' | 'desc';
 export type ViewMode = 'card' | 'list' | 'table';
-export type TabType = 'literature' | 'authors' | 'variables';
+export type TabType = 'literature' | 'authors' | 'variables' | 'recommendations';
 
 export type ViewState = {
   currentTab: TabType;

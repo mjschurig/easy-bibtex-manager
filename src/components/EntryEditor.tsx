@@ -3,6 +3,7 @@ import { CSLEntry, CSLAuthor, CSLDate, CSL_FIELD_METADATA, CSL_ENTRY_TYPES } fro
 import { AuthorInputField } from './ui/AuthorInputField';
 import { formatAuthors, getYear } from '../utils/cslUtils';
 import { CitationsReferencesModal } from './CitationsReferencesModal';
+import { getSemanticScholarIdFromEntry } from '../utils/semanticScholarConverter';
 
 interface EntryEditorProps {
   entry: CSLEntry;
@@ -18,6 +19,7 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [showCitationsModal, setShowCitationsModal] = useState(false);
   const [showReferencesModal, setShowReferencesModal] = useState(false);
+  const [showRecommendationsModal, setShowRecommendationsModal] = useState(false);
 
   // No manual state management needed - the key prop forces fresh component mount
 
@@ -35,7 +37,10 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
     }));
   }, []);
 
+  console.log("EntryEditor", entry);
+
   const handleSave = useCallback(() => {
+    console.log('handleSave', editedEntry);
     // Simple validation - check for required fields
     const hasErrors = Object.values(errors).some(errs => errs.length > 0);
     if (hasErrors) {
@@ -48,7 +53,7 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
       return;
     }
 
-    // Use a simple approach: pass only the core fields we know about
+    // Use a simple approach: pass only the core fields we know about, plus preserve custom fields
     const updates: Partial<CSLEntry> = {
       id: editedEntry.id,
       type: editedEntry.type,
@@ -67,6 +72,22 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
       URL: editedEntry.URL
     };
 
+    // Preserve any custom fields that aren't standard CSL fields
+    const standardFields = new Set([
+      'id', 'type', 'title', 'author', 'editor', 'issued', 'container-title',
+      'volume', 'issue', 'page', 'publisher', 'publisher-place', 'DOI', 'note', 'URL',
+      'custom' // Preserve custom fields like S2ID and CORPUSID
+    ]);
+    
+    // Always set citation-key to match id to preserve it during BibTeX export/import
+    (updates as any)['citation-key'] = editedEntry.id;
+    
+    Object.keys(editedEntry).forEach(key => {
+      if (!standardFields.has(key) && editedEntry[key as keyof CSLEntry] !== undefined) {
+        (updates as any)[key] = editedEntry[key as keyof CSLEntry];
+      }
+    });
+
     // Remove undefined fields
     Object.keys(updates).forEach(key => {
       if (updates[key as keyof CSLEntry] === undefined) {
@@ -84,32 +105,9 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
     }
   }, [entry.id, onDelete, onClose]);
 
-  // Extract Semantic Scholar paper ID from the entry (if available)
-  const getSemanticScholarId = useCallback(() => {
-    // Look for Semantic Scholar ID in various places
-    // 1. Check if the entry has a semantic scholar URL
-    if (entry.URL?.includes('semanticscholar.org/paper/')) {
-      // More flexible regex to match various paper ID formats:
-      // - 40-character hex strings (internal IDs)
-      // - ArXiv IDs (like 1705.10311, 2010.12345v2)
-      // - DOI fragments (like 10.18653/v1/N18-3011)
-      // - Other alphanumeric IDs
-      const match = entry.URL.match(/\/paper\/([a-f0-9A-F\.\/\-_:]+)/);
-      if (match) return match[1];
-    }
-    
-    // 2. Check if there's a semantic scholar ID in the note
-    if (entry.note?.includes('semanticscholar.org/paper/')) {
-      const match = entry.note.match(/semanticscholar\.org\/paper\/([a-f0-9A-F\.\/\-_:]+)/);
-      if (match) return match[1];
-    }
-    
-    // 3. Could also check custom fields if we add them in the future
-    return null;
-  }, [entry.URL, entry.note]);
 
-  const semanticScholarId = getSemanticScholarId();
-  const hasSemanticScholarId = Boolean(semanticScholarId);
+
+
 
   const renderField = (fieldName: keyof CSLEntry) => {
     const metadata = CSL_FIELD_METADATA[fieldName];
@@ -282,24 +280,56 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
             </p>
           </div>
           <div className="flex gap-2">
-            {hasSemanticScholarId && (
-              <>
-                <button
-                  onClick={() => setShowCitationsModal(true)}
-                  className="px-3 py-2 text-sm border border-blue-300 text-blue-700 rounded-md hover:bg-blue-50"
-                  title="View papers that cite this work"
-                >
-                  📄 Citations
-                </button>
-                <button
-                  onClick={() => setShowReferencesModal(true)}
-                  className="px-3 py-2 text-sm border border-green-300 text-green-700 rounded-md hover:bg-green-50"
-                  title="View papers cited by this work"
-                >
-                  📚 References
-                </button>
-              </>
-            )}
+            {(() => {
+              // Check if we have Semantic Scholar ID or DOI for API calls
+              const semanticScholarId = getSemanticScholarIdFromEntry(entry);
+              const hasDOI = Boolean(entry.DOI);
+              const canMakeApiCalls = Boolean(semanticScholarId || hasDOI);
+              const disabledReason = !canMakeApiCalls 
+                ? "Requires Semantic Scholar ID or DOI for API access" 
+                : "";
+
+              return (
+                <>
+                  <button
+                    onClick={() => setShowCitationsModal(true)}
+                    disabled={!canMakeApiCalls}
+                    className={`px-3 py-2 text-sm border rounded-md ${
+                      canMakeApiCalls 
+                        ? 'border-blue-300 text-blue-700 hover:bg-blue-50' 
+                        : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                    }`}
+                    title={canMakeApiCalls ? "View papers that cite this work" : disabledReason}
+                  >
+                    📄 Citations
+                  </button>
+                  <button
+                    onClick={() => setShowReferencesModal(true)}
+                    disabled={!canMakeApiCalls}
+                    className={`px-3 py-2 text-sm border rounded-md ${
+                      canMakeApiCalls 
+                        ? 'border-green-300 text-green-700 hover:bg-green-50' 
+                        : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                    }`}
+                    title={canMakeApiCalls ? "View papers cited by this work" : disabledReason}
+                  >
+                    📚 References
+                  </button>
+                  <button
+                    onClick={() => setShowRecommendationsModal(true)}
+                    disabled={!canMakeApiCalls}
+                    className={`px-3 py-2 text-sm border rounded-md ${
+                      canMakeApiCalls 
+                        ? 'border-purple-300 text-purple-700 hover:bg-purple-50' 
+                        : 'border-gray-300 text-gray-400 cursor-not-allowed'
+                    }`}
+                    title={canMakeApiCalls ? "View recommended papers based on this work" : disabledReason}
+                  >
+                    🎯 Recommendations
+                  </button>
+                </>
+              );
+            })()}
             <button
               onClick={() => setIsRawMode(!isRawMode)}
               className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
@@ -372,6 +402,23 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
             {renderField('DOI')}
             {renderField('note')}
             {renderField('URL')}
+            
+            {/* Custom fields */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Semantic Scholar ID (s2id)
+              </label>
+              <input
+                type="text"
+                value={getSemanticScholarIdFromEntry(editedEntry) || ''}
+                disabled
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 font-mono text-sm cursor-not-allowed"
+                placeholder="Auto-extracted from URL"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Automatically extracted from Semantic Scholar URL (read-only)
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -396,25 +443,40 @@ export function EntryEditor({ entry, stringVariables: _stringVariables, onUpdate
         </div>
       </div>
 
-      {/* Citations and References Modals */}
-      {hasSemanticScholarId && semanticScholarId && (
-        <>
-          <CitationsReferencesModal
-            isOpen={showCitationsModal}
-            onClose={() => setShowCitationsModal(false)}
-            paperId={semanticScholarId}
-            paperTitle={entry.title || 'Unknown Title'}
-            type="citations"
-          />
-          <CitationsReferencesModal
-            isOpen={showReferencesModal}
-            onClose={() => setShowReferencesModal(false)}
-            paperId={semanticScholarId}
-            paperTitle={entry.title || 'Unknown Title'}
-            type="references"
-          />
-        </>
-      )}
+      {/* Citations, References, and Recommendations Modals */}
+      {(() => {
+        const semanticScholarId = getSemanticScholarIdFromEntry(entry);
+        const paperId = semanticScholarId || entry.id; // Use S2 ID or fallback to entry ID
+        
+        return (
+          <>
+            <CitationsReferencesModal
+              isOpen={showCitationsModal}
+              onClose={() => setShowCitationsModal(false)}
+              paperId={paperId}
+              paperTitle={entry.title || 'Unknown Title'}
+              type="citations"
+              doi={entry.DOI}
+            />
+            <CitationsReferencesModal
+              isOpen={showReferencesModal}
+              onClose={() => setShowReferencesModal(false)}
+              paperId={paperId}
+              paperTitle={entry.title || 'Unknown Title'}
+              type="references"
+              doi={entry.DOI}
+            />
+            <CitationsReferencesModal
+              isOpen={showRecommendationsModal}
+              onClose={() => setShowRecommendationsModal(false)}
+              paperId={paperId}
+              paperTitle={entry.title || 'Unknown Title'}
+              type="recommendations"
+              doi={entry.DOI}
+            />
+          </>
+        );
+      })()}
     </div>
   );
 } 

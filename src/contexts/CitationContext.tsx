@@ -13,6 +13,7 @@ import {
 import {
   updateEntry as updateCslEntry
 } from '../utils/cslUtils';
+import { enhanceBibTeXWithCustomFields, ensureSemanticScholarIdInCustom } from '../utils/semanticScholarConverter';
 
 // Helper function for comparing citation data to avoid unnecessary Citation.js recreation
 function citationDataChanged(oldData: any[], newData: any[]): boolean {
@@ -25,20 +26,31 @@ function citationDataChanged(oldData: any[], newData: any[]): boolean {
     const oldEntry = oldData[i];
     const newEntry = newData[i];
     
-    // If different objects, check if content is actually different
-    if (oldEntry !== newEntry) {
-      if (oldEntry.id !== newEntry.id) {
-        return true;
-      }
-      if (oldEntry.type !== newEntry.type) {
-        return true;
-      }
-      if (oldEntry.title !== newEntry.title) {
-        return true;
-      }
-      // Add more key field comparisons as needed
+    // If same reference, no change
+    if (oldEntry === newEntry) {
+      continue;
+    }
+    
+    // If different objects, do a deeper comparison of key fields
+    if (oldEntry.id !== newEntry.id) {
       return true;
     }
+    if (oldEntry.type !== newEntry.type) {
+      return true;
+    }
+    if (oldEntry.title !== newEntry.title) {
+      return true;
+    }
+    
+    // Compare author arrays (important for detecting author changes)
+    const oldAuthors = JSON.stringify(oldEntry.author || []);
+    const newAuthors = JSON.stringify(newEntry.author || []);
+    if (oldAuthors !== newAuthors) {
+      return true;
+    }
+    
+    // If we reach here with different objects, assume change
+    return true;
   }
   
   return false;
@@ -51,9 +63,18 @@ function createOrUpdateCite(currentCite: any, newData: any[], oldData: any[]): a
     return currentCite;
   }
   
+  // Debug: Check data before creating Citation.js instance
+  console.log('Creating new Citation.js instance with', newData.length, 'entries');
+  
   // Always create new instance to avoid mutation issues
   // Citation.js instances should be treated as immutable in React
-  return new Cite(newData);
+  const newCite = new Cite(newData);
+  
+  // Debug: Check if Citation.js is adding extra data
+  console.log('Citation.js data length after creation:', newCite.data.length);
+  console.log('Original data length:', newData.length);
+  
+  return newCite;
 }
 
 // Helper function for generating unique IDs (moved from useCallback)
@@ -166,12 +187,16 @@ function citationReducer(state: EnhancedCitationUIState, action: CitationAction)
 
     case 'ADD_ENTRY': {
       const entry = action.payload;
+      
       // Generate ID within reducer if not provided
       if (!entry.id) {
         entry.id = generateUniqueIdInReducer(state.cite.data, entry.title || 'entry');
       }
+      // Ensure citation-key matches id to preserve it during BibTeX export/import
+      entry['citation-key'] = entry.id;
       
       const newData = [...state.cite.data, entry];
+      
       const newCite = createOrUpdateCite(state.cite, newData, state.cite.data);
       
       // Only increment version if cite instance actually changed
@@ -196,6 +221,16 @@ function citationReducer(state: EnhancedCitationUIState, action: CitationAction)
       
       const oldEntry = data[entryIndex];
       const updatedEntry = updateCslEntry(oldEntry, updates);
+      
+      // Debug: Check for entry size growth
+      const oldSize = JSON.stringify(oldEntry).length;
+      const newSize = JSON.stringify(updatedEntry).length;
+      if (newSize > oldSize * 2) {
+        console.warn(`Entry ${id} size doubled during update: ${oldSize} -> ${newSize} chars`);
+        console.log('Update payload:', updates);
+        console.log('Old entry keys:', Object.keys(oldEntry));
+        console.log('New entry keys:', Object.keys(updatedEntry));
+      }
       
       // Only update if entry actually changed
       if (oldEntry === updatedEntry) {
@@ -390,7 +425,6 @@ function citationReducer(state: EnhancedCitationUIState, action: CitationAction)
       };
 
     case 'START_EDITING_ENTRY':
-      console.log('Reducer: START_EDITING_ENTRY with payload:', action.payload);
       const newState = {
         ...state,
         form: {
@@ -399,7 +433,6 @@ function citationReducer(state: EnhancedCitationUIState, action: CitationAction)
           editingVariable: undefined
         }
       };
-      console.log('Reducer: new form state:', newState.form);
       return newState;
 
     case 'START_EDITING_VARIABLE':
@@ -433,9 +466,15 @@ interface CitationDataContextType {
 }
 
 interface CitationActionsContextType {
-  // Citation operations
-  loadFromBibTeX: (content: string, filename?: string) => Promise<void>;
+  // Native CSL-JSON operations (Open/Save)
+  loadFromCSLJSON: (content: string, filename?: string) => Promise<void>;
+  saveToCSLJSON: () => string;
+  
+  // BibTeX operations (Import/Export)
+  importFromBibTeX: (content: string, filename?: string) => Promise<void>;
   exportToBibTeX: () => string;
+  
+  // Citation operations
   resetCitation: () => void;
   
   // Entry operations  
@@ -496,9 +535,98 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
   const actions = useMemo<CitationActionsContextType>(() => {
     const actionHandlers: CitationActionsContextType = {
       // Citation operations - no dependencies needed
-      loadFromBibTeX: async (content: string, filename?: string) => {
+      // Native CSL-JSON operations (Open/Save)
+      loadFromCSLJSON: async (content: string, filename?: string) => {
+        try {
+          const parsedData = JSON.parse(content);
+          const newCite = new Cite(parsedData);
+          dispatch({ 
+            type: 'LOAD_CITATION', 
+            payload: { cite: newCite, filename } 
+          });
+        } catch (error) {
+          throw error;
+        }
+      },
+      
+      saveToCSLJSON: () => {
+        // Extract only standard CSL-JSON fields to avoid Citation.js internals
+        const rawData = stateRef.current.cite.data;
+        
+        console.log('Debug: Raw data entries count:', rawData.length);
+        
+        // Define standard CSL-JSON fields to include
+        const cslFields = [
+          'id', 'type', 'title', 'author', 'editor', 'container-title', 'collection-title',
+          'volume', 'issue', 'number', 'page', 'publisher', 'publisher-place', 'edition',
+          'issued', 'accessed', 'DOI', 'URL', 'ISBN', 'ISSN', 'abstract', 'note', 
+          'citation-key', 'custom', 'keyword', 'language', 'event', 'event-place',
+          'genre', 'medium', 'version', 'call-number', 'archive', 'archive-place',
+          'archive-location', 'jurisdiction', 'references', 'container-author',
+          'collection-editor', 'composer', 'director', 'interviewer', 'translator',
+          'recipient', 'reviewed-author', 'illustrator', 'editorial-director'
+        ];
+        
+        // Create clean CSL-JSON entries with only standard fields
+        const cleanData = rawData.map((entry: any, index: number) => {
+          console.log(`Processing entry ${index}: ${entry.id || 'no-id'}`);
+          
+          const cleanEntry: any = {};
+          
+          // Copy only known CSL-JSON fields
+          cslFields.forEach(field => {
+            if (entry.hasOwnProperty(field) && entry[field] !== undefined) {
+              cleanEntry[field] = entry[field];
+            }
+          });
+          
+          // Also copy any other simple properties that aren't functions
+          Object.keys(entry).forEach(key => {
+            if (!cslFields.includes(key) && 
+                entry.hasOwnProperty(key) && 
+                entry[key] !== undefined &&
+                typeof entry[key] !== 'function' &&
+                !key.startsWith('_')) { // Skip private properties
+              try {
+                // Test if this property can be safely serialized
+                JSON.stringify(entry[key]);
+                cleanEntry[key] = entry[key];
+              } catch (e) {
+                console.warn(`Skipping problematic field "${key}" in entry ${entry.id}:`, e instanceof Error ? e.message : String(e));
+              }
+            }
+          });
+          
+          const entrySize = JSON.stringify(cleanEntry).length;
+          if (entrySize > 50000) { // More than 50KB is very suspicious
+            console.error(`Entry ${index} (${entry.id}) is extremely large: ${entrySize} chars`);
+            console.log('Entry keys:', Object.keys(cleanEntry));
+          }
+          
+          return cleanEntry;
+        });
+        
+        try {
+          const serialized = JSON.stringify(cleanData, null, 2);
+          console.log('Final JSON size:', serialized.length, 'characters');
+          console.log('Size in MB:', (serialized.length / (1024 * 1024)).toFixed(2));
+          return serialized;
+        } catch (error) {
+          console.error('JSON.stringify error:', error);
+          throw error;
+        }
+      },
+      
+      // BibTeX operations (Import/Export)
+      importFromBibTeX: async (content: string, filename?: string) => {
         try {
           const newCite = new Cite(content);
+          
+          // Extract and set Semantic Scholar IDs from URLs for entries that don't have custom.S2ID
+          newCite.data.forEach((entry: any) => {
+            ensureSemanticScholarIdInCustom(entry);
+          });
+          
           dispatch({ 
             type: 'LOAD_CITATION', 
             payload: { cite: newCite, filename } 
@@ -510,7 +638,27 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
       
       exportToBibTeX: () => {
         // Use ref to access current state instead of stale closure
-        return stateRef.current.cite.format('bibtex');
+        const basicBibtex = stateRef.current.cite.format('bibtex');
+        const entries = stateRef.current.cite.data;
+        
+        // Enhance BibTeX with custom fields like s2id
+        if (entries.length === 1) {
+          // Single entry - enhance it
+          const enhanced = enhanceBibTeXWithCustomFields(basicBibtex, entries[0]);
+          return enhanced;
+        } else if (entries.length > 1) {
+          // Multiple entries - enhance each one
+          const entryBibtexList = basicBibtex.split('\n\n').filter((block: string) => block.trim());
+          const enhancedEntries = entryBibtexList.map((entryBibtex: string, index: number) => {
+            if (index < entries.length) {
+              return enhanceBibTeXWithCustomFields(entryBibtex, entries[index]);
+            }
+            return entryBibtex;
+          });
+          return enhancedEntries.join('\n\n');
+        }
+        
+        return basicBibtex;
       },
       
       resetCitation: () => {
@@ -524,25 +672,27 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
         if (!entryWithId.id) {
           entryWithId.id = generateUniqueIdInReducer(stateRef.current.cite.data, entryWithId.title || 'entry');
         }
+        // Ensure citation-key matches id to preserve it during BibTeX export/import
+        entryWithId['citation-key'] = entryWithId.id;
         
-        console.log('addEntry: dispatching ADD_ENTRY with payload:', entryWithId);
         dispatch({ type: 'ADD_ENTRY', payload: entryWithId });
-        console.log('addEntry: dispatched, entry should be in state now');
         return entryWithId.id;
       },
       
       updateEntry: async (id: string, updates: any) => {
-        // Debouncing mechanism to prevent duplicate calls
+        // Improved debouncing mechanism to prevent duplicate calls
         const callId = `${id}-${JSON.stringify(updates)}`;
+        
+        // Clear any existing timeout for this call
         if (updateEntryTimeoutRef.current[callId]) {
-          return;
+          clearTimeout(updateEntryTimeoutRef.current[callId]);
         }
         
+        // Set new timeout to delay the actual update
         updateEntryTimeoutRef.current[callId] = setTimeout(() => {
           delete updateEntryTimeoutRef.current[callId];
-        }, 100); // Clear after 100ms
-        
-        dispatch({ type: 'UPDATE_ENTRY', payload: { id, updates } });
+          dispatch({ type: 'UPDATE_ENTRY', payload: { id, updates } });
+        }, 100); // Debounce for 100ms
       },
       
       deleteEntry: (id: string) => {
@@ -648,9 +798,7 @@ export function CitationProvider({ children }: { children: React.ReactNode }) {
       
       // UI operations
       startEditingEntry: (id: string) => {
-        console.log('startEditingEntry: called with ID:', id);
         dispatch({ type: 'START_EDITING_ENTRY', payload: id });
-        console.log('startEditingEntry: dispatched START_EDITING_ENTRY');
       },
       
       startEditingVariable: (key: string) => {

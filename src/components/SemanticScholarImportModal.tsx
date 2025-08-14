@@ -137,7 +137,6 @@ export function SemanticScholarImportModal({
       
       try {
         paperData = await SemanticScholarApi.getPaperDetails(selectedPaper.paperId);
-        console.log('Fetched detailed paper data for import');
       } catch (detailError) {
         // If detail fetch fails, proceed with search data
         console.warn('Could not fetch detailed paper info, using search data:', detailError);

@@ -9,6 +9,7 @@ import { TabNavigation } from './TabNavigation';
 import { LiteratureView } from './LiteratureView';
 import { AuthorsView } from './AuthorsView';
 import { VariablesView } from './VariablesView';
+import { RecommendationsView } from './RecommendationsView';
 import { BibFileSelector } from './BibFileSelector';
 
 import { EntryCreationModal } from './EntryCreationModal';
@@ -18,12 +19,15 @@ import { SemanticScholarImportModal } from './SemanticScholarImportModal';
 interface BibFile {
   name: string;
   content: string;
+  type?: 'bib' | 'json';
 }
 
 export function CitationManager() {
   const { state } = useCitationData();
   const { 
-    loadFromBibTeX, 
+    loadFromCSLJSON,
+    saveToCSLJSON,
+    importFromBibTeX, 
     exportToBibTeX, 
     addEntry, 
     updateEntry, 
@@ -50,7 +54,7 @@ export function CitationManager() {
   const updateVariableRef = useRef(updateVariable);
   const deleteVariableRef = useRef(deleteVariable);
   
-  // Update refs when functions change
+  // Update refs when functions change (but since functions are memoized with empty deps, this should be stable)
   useEffect(() => {
     updateEntryRef.current = updateEntry;
     deleteEntryRef.current = deleteEntry;
@@ -93,7 +97,18 @@ export function CitationManager() {
     reader.onload = async (e) => {
       const content = e.target?.result as string;
       try {
-        await loadFromBibTeX(content, file.name);
+        // Auto-detect file type
+        const isJsonFile = file.name.toLowerCase().endsWith('.json') || 
+                          (content.trim().startsWith('[') || content.trim().startsWith('{'));
+        
+        if (isJsonFile) {
+          // Load as CSL-JSON
+          await loadFromCSLJSON(content, file.name);
+        } else {
+          // Load as BibTeX (import)
+          await importFromBibTeX(content, file.name);
+        }
+        
         setShowFileSelector(false); // Close the selector after successful load
         setAvailableBibFiles([]);
       } catch (error) {
@@ -104,17 +119,60 @@ export function CitationManager() {
       alert('Failed to read file.');
     };
     reader.readAsText(file);
-  }, [loadFromBibTeX]);
+  }, [loadFromCSLJSON, importFromBibTeX]);
 
   const handleOpenFile = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
 
   const handleSaveFile = useCallback(async () => {
+    console.log('handleSaveFile', state.isLoaded);
+    if (!state.isLoaded) return;
+
+    const cslJsonString = saveToCSLJSON();
+    const suggestedName = state.filename?.replace(/\.(bib|json)$/, '.json') || 'bibliography.json';
+
+    // Try to use the File System Access API
+    if ('showSaveFilePicker' in window) {
+      console.log('showSaveFilePicker', 'showSaveFilePicker' in window);
+      try {
+        const fileHandle = await (window as any).showSaveFilePicker({
+          suggestedName,
+          types: [{
+            description: 'CSL-JSON File',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(cslJsonString);
+        await writable.close();
+        return;
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('File System Access API failed:', err);
+        } else {
+          return;
+        }
+      }
+    }
+
+    // Fallback to download
+    const blob = new Blob([cslJsonString], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [state.isLoaded, state.filename, saveToCSLJSON]);
+
+  const handleExportToBibTeX = useCallback(async () => {
     if (!state.isLoaded) return;
 
     const bibtexString = exportToBibTeX();
-    const suggestedName = state.filename || 'bibliography.bib';
+    const suggestedName = state.filename?.replace(/\.(json|bib)$/, '.bib') || 'bibliography.bib';
 
     // Try to use the File System Access API
     if ('showSaveFilePicker' in window) {
@@ -168,31 +226,21 @@ export function CitationManager() {
   }, []);
 
   const handleCreateNewEntry = useCallback((newEntry: any) => {
-    console.log('Creating new entry:', newEntry);
     
     // Add the entry to state
     const entryId = addEntry(newEntry);
-    console.log('Added entry with ID:', entryId);
     
     // Switch to literature tab and start editing the new entry
     setCurrentTab('literature');
     startEditingEntry(entryId);
-    
-    console.log('New entry created and opened for editing');
   }, [addEntry, setCurrentTab, startEditingEntry]);
 
-  const handleImportEntry = useCallback((importedEntry: any) => {
-    console.log('Importing entry:', importedEntry);
-    
+  const handleImportEntry = useCallback((importedEntry: any) => { 
     // Add the entry to state
     const entryId = addEntry(importedEntry);
-    console.log('Imported entry with ID:', entryId);
-    
     // Switch to literature tab and start editing the new entry
     setCurrentTab('literature');
-    startEditingEntry(entryId);
-    
-    console.log('Entry imported and opened for editing');
+    startEditingEntry(entryId);    
   }, [addEntry, setCurrentTab, startEditingEntry]);
 
   const handleSelectEntry = useCallback(() => {
@@ -246,18 +294,39 @@ export function CitationManager() {
 
   const handleBibFileSelect = useCallback(async (file: BibFile) => {
     try {
-      await loadFromBibTeX(file.content, file.name);
+      // Auto-detect file type or use the type from discovery
+      const isJsonFile = file.type === 'json' || file.name.toLowerCase().endsWith('.json');
+      
+      if (isJsonFile) {
+        // Load as CSL-JSON
+        await loadFromCSLJSON(file.content, file.name);
+      } else {
+        // Import as BibTeX
+        await importFromBibTeX(file.content, file.name);
+      }
+      
       setShowFileSelector(false);
       setAvailableBibFiles([]);
     } catch (error) {
       alert(`Error loading ${file.name}: ${error}`);
     }
-  }, [loadFromBibTeX]);
+  }, [loadFromCSLJSON, importFromBibTeX]);
 
   const handleBibFileSelectorCancel = useCallback(() => {
     setShowFileSelector(false);
     setAvailableBibFiles([]);
   }, []);
+
+  const handleCreateNewBib = useCallback(async () => {
+    try {
+      // Create an empty CSL-JSON file
+      await loadFromCSLJSON('[]', 'new-bibliography.json');
+      setShowFileSelector(false);
+      setAvailableBibFiles([]);
+    } catch (error) {
+      alert(`Error creating new bibliography: ${error}`);
+    }
+  }, [loadFromCSLJSON]);
 
 
 
@@ -266,7 +335,7 @@ export function CitationManager() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".bib"
+        accept=".bib,.json"
         className="hidden"
         onChange={handleFileSelect}
       />
@@ -276,6 +345,7 @@ export function CitationManager() {
         isLoaded={state.isLoaded}
         onOpenFile={handleOpenFile}
         onSaveFile={handleSaveFile}
+        onExportToBibTeX={handleExportToBibTeX}
         onCreateEntry={handleCreateEntry}
         onImportFromSemanticScholar={handleImportFromSemanticScholar}
       />
@@ -310,12 +380,19 @@ export function CitationManager() {
         />
       )}
 
+      {state.view.currentTab === 'recommendations' && (
+        <RecommendationsView
+          onSelectEntry={handleSelectEntry}
+        />
+      )}
+
       {showFileSelector && (
         <BibFileSelector
           files={availableBibFiles}
           onSelect={handleBibFileSelect}
           onCancel={handleBibFileSelectorCancel}
           onFileUpload={handleFileSelect}
+          onCreateNew={handleCreateNewBib}
         />
       )}
 

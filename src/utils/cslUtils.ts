@@ -257,6 +257,7 @@ export function getEntriesByAuthor(entries: any[], authorName: string): any[] {
 export function createNewEntry(id: string, type: string = 'article-journal'): any {
   return {
     id,
+    'citation-key': id, // Preserve ID during BibTeX export/import
     type,
     title: '',
     author: [],
@@ -277,6 +278,10 @@ export function updateEntry(entry: any, updates: Record<string, any>): any {
       updated.issued = { 'date-parts': [[parseInt(value)]] };
     } else if (key === 'issued') {
       updated.issued = value;
+    } else if (key === 'id') {
+      // When updating ID, also update citation-key to preserve it during BibTeX export/import
+      updated.id = value;
+      updated['citation-key'] = value;
     } else {
       updated[key] = value;
     }

@@ -152,6 +152,11 @@ export function convertSemanticScholarToCSL(paper: SemanticScholarPaper): CSLEnt
     }
   }
 
+  // Store Semantic Scholar ID in custom field for BibTeX s2id support
+  if (paper.paperId) {
+    setSemanticScholarIdInCustom(cslEntry, paper.paperId);
+  }
+
   return cslEntry;
 }
 
@@ -178,4 +183,138 @@ export function generateUniqueCitationKey(
   }
   
   return uniqueKey;
+}
+
+/**
+ * Extracts the Semantic Scholar ID from a CSL entry
+ * @param entry CSL entry that may contain S2ID in custom field or other locations
+ * @returns Semantic Scholar ID or null if not found
+ */
+export function getSemanticScholarIdFromEntry(entry: any): string | null {
+  // Primary: check custom.S2ID field (preserved through BibTeX import)
+  if (entry.custom?.S2ID) {
+    return entry.custom.S2ID;
+  }
+  
+  // Legacy: check custom field (direct assignment)
+  if (entry['semantic-scholar-id']) {
+    return entry['semantic-scholar-id'];
+  }
+  
+  // Fallback: check if the entry ID looks like a Semantic Scholar paperId (40-character hex)
+  if (entry.id && /^[a-f0-9]{40}$/i.test(entry.id)) {
+    return entry.id;
+  }
+  
+  // Legacy: check URL for Semantic Scholar ID
+  if (entry.URL?.includes('semanticscholar.org/paper/')) {
+    const match = entry.URL.match(/\/paper\/([a-f0-9A-F\.\/\-_:]+)/);
+    if (match) return match[1];
+  }
+  
+  // Legacy: check note for Semantic Scholar URL
+  if (entry.note?.includes('semanticscholar.org/paper/')) {
+    const match = entry.note.match(/semanticscholar\.org\/paper\/([a-f0-9A-F\.\/\-_:]+)/);
+    if (match) return match[1];
+  }
+  
+  return null;
+}
+
+/**
+ * Extracts the Corpus ID from a CSL entry
+ * @param entry CSL entry that may contain Corpus ID in custom field
+ * @returns Corpus ID or null if not found
+ */
+export function getCorpusIdFromEntry(entry: any): string | null {
+  // Primary: check custom field for corpus ID
+  if (entry.custom?.CORPUSID) {
+    return entry.custom.CORPUSID;
+  }
+  
+  // Legacy: check direct custom field
+  if (entry['corpus-id']) {
+    return entry['corpus-id'];
+  }
+  
+  return null;
+}
+
+/**
+ * Sets the Semantic Scholar ID in the custom field
+ * @param entry CSL entry to modify
+ * @param semanticScholarId Semantic Scholar paper ID
+ */
+export function setSemanticScholarIdInCustom(entry: any, semanticScholarId: string): void {
+  if (!entry.custom) {
+    entry.custom = {};
+  }
+  
+  entry.custom.S2ID = semanticScholarId;
+}
+
+/**
+ * Enhances BibTeX export by injecting custom fields like s2id
+ * @param bibtex Original BibTeX string from Citation.js
+ * @param entry CSL entry with custom fields
+ * @returns Enhanced BibTeX with custom fields
+ */
+export function enhanceBibTeXWithCustomFields(bibtex: string, entry: any): string {
+  if (!entry.custom) {
+    return bibtex;
+  }
+  
+  let enhanced = bibtex;
+  
+  // Inject s2id field if present
+  if (entry.custom.S2ID) {
+    enhanced = injectBibTeXField(enhanced, 's2id', entry.custom.S2ID);
+  }
+  
+  return enhanced;
+}
+
+/**
+ * Injects a field into a BibTeX entry
+ * @param bibtex BibTeX string
+ * @param fieldName Field name to inject
+ * @param fieldValue Field value to inject
+ * @returns BibTeX with injected field
+ */
+function injectBibTeXField(bibtex: string, fieldName: string, fieldValue: string): string {
+  const lines = bibtex.split('\n');
+  const result = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    result.push(line);
+    
+    // If this line contains a field and the next line is the closing brace
+    if (line.includes('=') && line.trim().endsWith(',') && 
+        i < lines.length - 1 && lines[i + 1].trim() === '}') {
+      // Insert the custom field before the closing brace
+      result.push(`\t${fieldName} = {${fieldValue}},`);
+    }
+  }
+  
+  return result.join('\n');
+}
+
+/**
+ * Attempts to extract and set Semantic Scholar ID from URL if not already in custom fields
+ * This handles cases where entries have the S2 URL but missing custom.S2ID
+ * @param entry CSL entry to check and potentially update
+ */
+export function ensureSemanticScholarIdInCustom(entry: any): void {
+  // Skip if S2ID is already set in custom fields
+  if (entry.custom?.S2ID) {
+    return;
+  }
+  
+  // Try to extract from existing getSemanticScholarIdFromEntry logic
+  const extractedId = getSemanticScholarIdFromEntry(entry);
+  
+  if (extractedId) {
+    setSemanticScholarIdInCustom(entry, extractedId);
+  }
 }

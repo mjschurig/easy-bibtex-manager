@@ -92,17 +92,12 @@ export class SemanticScholarApi {
    * Use this to test if the API endpoints are working correctly
    */
   static async debugPaperReferences(paperId: string): Promise<void> {
-    console.log('=== DEBUG: Testing paper references API ===');
-    console.log('Paper ID:', paperId);
     
     try {
       // Test the raw API call first
       const testUrl = `${SEMANTIC_SCHOLAR_BASE_URL}/graph/v1/paper/${paperId}/references?limit=5&fields=paperId,title,authors,year`;
-      console.log('Test URL:', testUrl);
       
       const response = await fetch(testUrl);
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -111,16 +106,7 @@ export class SemanticScholarApi {
       }
       
       const data = await response.json();
-      console.log('Raw API response:', data);
-      console.log('Response structure analysis:', {
-        hasData: !!data.data,
-        dataType: Array.isArray(data.data) ? 'array' : typeof data.data,
-        dataLength: data.data?.length || 0,
-        firstItem: data.data?.[0],
-        hasTotal: 'total' in data,
-        hasOffset: 'offset' in data,
-        allKeys: Object.keys(data)
-      });
+      
       
     } catch (error) {
       console.error('Debug test failed:', error);
@@ -238,11 +224,6 @@ export class SemanticScholarApi {
     try {
       const url = getApiUrl('/graph/v1/paper/search/bulk', params);
       
-      // Only log in development
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Semantic Scholar bulk search request:', url);
-      }
-      
       const response = await this.fetchWithRetry(url);
       
       if (!response.ok) {
@@ -289,6 +270,65 @@ export class SemanticScholarApi {
     return response.json();
   }
 
+  /**
+   * Attempts to fetch paper details using bibliography ID with DOI fallback
+   * This supports the workflow where Semantic Scholar paperId is used as bibId
+   * @param bibId The bibliography ID (should be a Semantic Scholar paperId)
+   * @param doi Optional DOI for fallback if bibId lookup fails
+   * @returns Promise with paper details or throws descriptive error
+   */
+  static async getPaperDetailsByBibId(bibId: string, doi?: string): Promise<SemanticScholarDetailedPaper> {
+    try {
+      // First attempt: Use the bibId directly as a Semantic Scholar paper ID
+      return await this.getPaperDetails(bibId);
+    } catch (firstError) {
+      console.warn(`Failed to fetch paper using bibId "${bibId}":`, firstError);
+      
+      // Second attempt: Try with DOI if available
+      if (doi) {
+        try {
+          const doiPaperId = `DOI:${doi}`;
+          return await this.getPaperDetails(doiPaperId);
+        } catch (doiError) {
+          console.warn(`Failed to fetch paper using DOI "${doi}":`, doiError);
+          
+          // Both attempts failed - provide comprehensive error message
+          const errorMessage = [
+            `Unable to fetch paper details for bibliography entry "${bibId}".`,
+            `Attempted methods:`,
+            `1. Direct paper ID lookup failed: ${firstError instanceof Error ? firstError.message : 'Unknown error'}`,
+            doi ? `2. DOI lookup (${doi}) failed: ${doiError instanceof Error ? doiError.message : 'Unknown error'}` : `2. No DOI available for fallback lookup`,
+            ``,
+            `Please ensure:`,
+            `- The bibliography ID corresponds to a valid Semantic Scholar paper ID`,
+            doi ? `- The DOI "${doi}" is correct and the paper exists in Semantic Scholar` : `- The paper has a valid DOI that can be used for lookup`,
+            `- You have internet connectivity and CORS is properly configured`,
+            ``,
+            `Supported ID formats: paperId, CorpusId:123, DOI:10.xxx, ARXIV:xxxx, etc.`
+          ].join('\n');
+          
+          throw new Error(errorMessage);
+        }
+      } else {
+        // No DOI available for fallback
+        const errorMessage = [
+          `Unable to fetch paper details for bibliography entry "${bibId}".`,
+          `Primary lookup failed: ${firstError instanceof Error ? firstError.message : 'Unknown error'}`,
+          `No DOI available for fallback lookup.`,
+          ``,
+          `Please ensure:`,
+          `- The bibliography ID corresponds to a valid Semantic Scholar paper ID`,
+          `- The paper entry includes a valid DOI for fallback lookups`,
+          `- You have internet connectivity and CORS is properly configured`,
+          ``,
+          `Supported ID formats: paperId, CorpusId:123, DOI:10.xxx, ARXIV:xxxx, etc.`
+        ].join('\n');
+        
+        throw new Error(errorMessage);
+      }
+    }
+  }
+
   static async searchPapersByTitle(title: string): Promise<SemanticScholarSearchResponse> {
     // Search specifically by title for more precise results
     const query = `title:"${title}"`;
@@ -313,11 +353,6 @@ export class SemanticScholarApi {
 
     const url = getApiUrl(`/graph/v1/paper/${encodedPaperId}/citations`, params);
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Fetching citations for paper:', paperId);
-      console.log('Full citations URL:', url);
-    }
-    
     const response = await this.fetchWithRetry(url);
     
     if (!response.ok) {
@@ -336,15 +371,7 @@ export class SemanticScholarApi {
 
     const data = await response.json();
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Citations API response data:', data);
-      console.log('Citations API response structure:', {
-        hasData: !!data.data,
-        dataLength: data.data?.length || 0,
-        total: data.total,
-        sampleItem: data.data?.[0]
-      });
-    }
+    
     
     // Citations API returns { data: [{ citingPaper: {...} }] }
     // Transform to match search response format
@@ -367,11 +394,6 @@ export class SemanticScholarApi {
 
     const url = getApiUrl(`/graph/v1/paper/${encodedPaperId}/references`, params);
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Fetching references for paper:', paperId);
-      console.log('Full references URL:', url);
-    }
-    
     const response = await this.fetchWithRetry(url);
     
     if (!response.ok) {
@@ -390,15 +412,7 @@ export class SemanticScholarApi {
 
     const data = await response.json();
     
-    if (process.env.NODE_ENV === 'development') {
-      console.log('References API response data:', data);
-      console.log('References API response structure:', {
-        hasData: !!data.data,
-        dataLength: data.data?.length || 0,
-        total: data.total,
-        sampleItem: data.data?.[0]
-      });
-    }
+    
     
     // References API returns { data: [{ citedPaper: {...} }] }
     // Transform to match search response format
@@ -406,6 +420,102 @@ export class SemanticScholarApi {
       total: data.total || data.data?.length || 0,
       offset: data.offset || 0,
       data: data.data?.map((item: any) => item.citedPaper).filter(Boolean) || []
+    };
+  }
+
+  static async getPaperRecommendations(paperId: string, limit: number = 100): Promise<SemanticScholarSearchResponse> {
+    // Ensure paper ID is properly encoded for URL
+    const encodedPaperId = encodeURIComponent(paperId);
+    
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      fields: SEARCH_FIELDS
+    });
+
+    const url = getApiUrl(`/recommendations/v1/papers/forpaper/${encodedPaperId}`, params);
+    
+
+    const response = await this.fetchWithRetry(url);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Recommendations API Error:', errorText);
+      console.error('Recommendations URL that failed:', url);
+      console.error('Response status:', response.status, response.statusText);
+      
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        throw new RateLimitError(retryAfter || undefined);
+      }
+      
+      throw new Error(`Failed to fetch recommendations: ${response.status} ${response.statusText}. ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    
+    
+    // Recommendations API returns { recommendedPapers: [...] }
+    // Transform to match search response format
+    return {
+      total: data.recommendedPapers?.length || 0,
+      offset: 0,
+      data: data.recommendedPapers || []
+    };
+  }
+
+  static async getRecommendationsFromExamples(
+    positivePaperIds: string[], 
+    negativePaperIds: string[] = [], 
+    limit: number = 100
+  ): Promise<SemanticScholarSearchResponse> {
+    const params = new URLSearchParams({
+      fields: SEARCH_FIELDS
+    });
+
+    const url = getApiUrl(`/recommendations/v1/papers`, params);
+    
+    const requestBody = {
+      positivePaperIds,
+      negativePaperIds,
+      limit
+    };
+    
+    
+    
+    const response = await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Recommendations POST API Error:', errorText);
+      console.error('Recommendations POST URL that failed:', url);
+      console.error('Request body:', requestBody);
+      console.error('Response status:', response.status, response.statusText);
+      
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After');
+        throw new RateLimitError(retryAfter || undefined);
+      }
+      
+      throw new Error(`Failed to fetch recommendations from examples: ${response.status} ${response.statusText}. ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    
+    
+    // Recommendations API returns { recommendedPapers: [...] }
+    // Transform to match search response format
+    return {
+      total: data.recommendedPapers?.length || 0,
+      offset: 0,
+      data: data.recommendedPapers || []
     };
   }
 }
