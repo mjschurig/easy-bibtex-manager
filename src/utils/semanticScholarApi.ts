@@ -105,8 +105,6 @@ export class SemanticScholarApi {
         return;
       }
       
-      const data = await response.json();
-      
       
     } catch (error) {
       console.error('Debug test failed:', error);

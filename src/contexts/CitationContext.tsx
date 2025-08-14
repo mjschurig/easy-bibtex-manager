@@ -337,7 +337,8 @@ function citationReducer(state: EnhancedCitationUIState, action: CitationAction)
       };
 
     case 'DELETE_VARIABLE': {
-      const { [action.payload]: deleted, ...remainingVariables } = state.variables;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [action.payload]: _deleted, ...remainingVariables } = state.variables;
       return {
         ...state,
         variables: remainingVariables,
